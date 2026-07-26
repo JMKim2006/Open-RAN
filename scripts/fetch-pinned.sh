@@ -5,7 +5,8 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT/integration/pins.env"
 mkdir -p "$ROOT/vendor"
 fetch() {
-  local name="$1" repo="$2" rev="$3" dir="$ROOT/vendor/$name"
+  local name="$1" repo="$2" rev="$3"
+  local dir="$ROOT/vendor/$name"
   if [[ ! -d "$dir/.git" ]]; then git clone --filter=blob:none "$repo" "$dir"; fi
   git -C "$dir" fetch --depth 1 origin "$rev"
   git -C "$dir" checkout --detach "$rev"
