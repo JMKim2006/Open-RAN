@@ -1,36 +1,69 @@
 # ORQEST public-stack validation
 
-Deployment and public-stack validation repository for the ORQEST JSAC research project. It contains one unified O-DU ORQEST engine; queue-sensitive per-TTI decisions never leave the O-DU.
+Deployment and public-stack validation repository for the ORQEST JSAC research
+project. It contains one unified O-DU ORQEST engine; queue-sensitive per-TTI
+decisions remain inside the O-DU.
 
-ORQEST KPM/RC fields are **experimental extensions**. They are not standardized O-RAN measurements or actions.
+ORQEST KPM/RC fields are **experimental extensions**. They are not standardized
+O-RAN measurements or actions.
 
 ## Portable validation
 
 ```bash
-cmake -S . -B build -G Ninja
-cmake --build build
+python3 tools/check_posix_paths.py
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel 2
 ctest --test-dir build --output-on-failure
 python3 tools/validate_contract.py
-python3 tools/evidence_gate.py --gate A --evidence evidence.json
-python3 tools/evidence_gate.py --gate B --evidence evidence.json
+python3 -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
-The C++17 engine maintains a compatibility-qualified global sufficient-statistic prefix and source-exclusive cutoffs. Snapshot install is serialized and atomically replaces immutable active state only after version, digest, cutoff, CRC32 and positive-definiteness validation. Local observations at or after the exclusive cutoff are replayed exactly once. Scheduling uses current local queue state and capacity-bounded queue–RBG matching with a fixed calibrated exploration coefficient.
+The C++17 engine maintains a compatibility-qualified sufficient-statistic prefix
+and source-exclusive cutoffs. Snapshot installation validates version, digest,
+cutoff, CRC32 and positive-definiteness before atomically replacing immutable
+state. Observations at or after the exclusive cutoff are replayed exactly once.
 
-## Ubuntu 24.04 public stack
+For context `x`, the scheduler uses Cholesky solves (never an explicit inverse):
 
-All upstreams are immutable full-SHA pins in `integration/pins.env`. The OCUDU verifier checks both the pinned commit and Git blob identities at the five bounded extension points.
+```text
+theta  = solve(V, b)
+mu     = clip(x^T theta + alpha sqrt(x^T solve(V, x)), 0, 1)
+weight = Q * mu - V_control * C
+```
+
+It then solves exact capacity-constrained queue–RBG bipartite b-matching.
+
+## GitHub-hosted no-RF experiment
+
+The `hosted-validation` workflow runs exclusively on standard
+`ubuntu-24.04`. Its dependency chain is:
+
+```text
+capability probe -> portable tests -> minimal OCUDU/FlexRIC Gate A -> overlay Gate B
+```
+
+The capability probe records Docker, passwordless sudo, CPU, RAM, disk, the SCTP
+kernel protocol, and an actual SCTP socket creation. The minimal experiment
+fetches the official `https://gitlab.com/ocudu/ocudu.git` at the immutable SHA in
+`integration/pins.env`, builds only OCUDU gNB and FlexRIC, starts
+`ru_dummy`/`test_mode`/`no_core`, captures loopback SCTP port 36421, and requires
+real E2 Setup plus KPM subscription or indication evidence.
 
 ```bash
-scripts/bootstrap-ubuntu2404.sh
-scripts/fetch-pinned.sh
-scripts/build-pinned.sh
-python3 tools/verify_ocudu_tree.py vendor/ocudu
-scripts/run-experiment.sh evidence/run
+scripts/capability-probe.sh evidence/capability
+scripts/run-hosted-minimal-e2.sh evidence/hosted-minimal-e2
+scripts/run-hosted-overlay.sh evidence/hosted-overlay
 ```
 
-The intended no-RF E2 path is Open5GS → FlexRIC → OCUDU gNB → software UE → KPM xApp. Because interface names, credentials and subscriber data are site-specific, `integration/run-stock-e2-local.sh` is deliberately untracked and must perform that deployment and write real captures/logs into the supplied evidence directory. The runner fails if that reviewed local adapter is absent rather than pretending a deployment exists. Captures must include E2AP PCAP, component logs, exact commits, dirty status and SHA-256 manifests.
+Every experiment uploads logs, PCAP where produced, exact revisions, dirty-tree
+state, run metadata, and SHA-256 manifests even when it fails. A missing runner
+capability or upstream incompatibility is a recorded failure, never inferred
+success.
 
-> **Security:** attach a self-hosted Actions runner only to a private, trusted repository. Pull-request code can execute with the runner's host and network privileges.
+Open5GS and OAI UE are pinned for a later full-stack stage but are deliberately
+not fetched or built before hosted Gate A succeeds. Gate B is dependency-blocked
+until Gate A passes and the bounded KPM/RC overlay is applied to the verified
+OCUDU tree. A stock OCUDU run can never pass Gate B.
 
-See `docs/ACCEPTANCE.md` for Gate A/Gate B requirements and exact claim boundaries.
+See `docs/ACCEPTANCE.md` for claim boundaries and `docs/EXECUTION-LOG.md` for
+commands and observed results.

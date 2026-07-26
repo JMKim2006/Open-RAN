@@ -1,5 +1,5 @@
 {
-  "repository": "https://github.com/ocudu/ocudu.git",
+  "repository": "https://gitlab.com/ocudu/ocudu.git",
   "revision": "9b0cfa600d9d693bf56277e4575dc8c4b8b729bb",
   "points": [
     {"name":"KPM DU measurement provider","path":"lib/e2/e2sm/e2sm_kpm/e2sm_kpm_du_meas_provider_impl.h","blob_sha":"545168c7f05af937612805f411e5b9269509fb0e"},

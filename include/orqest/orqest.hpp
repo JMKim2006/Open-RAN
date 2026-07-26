@@ -22,7 +22,13 @@ struct Snapshot {
   Sufficient aggregate;
   uint32_t crc{};
 };
-struct Queue { std::string id; unsigned demand{}; Vec feature{}; };
+struct Queue {
+  std::string id;
+  unsigned demand{};
+  Vec feature{};
+  double backlog{}; // Q; defaults to demand when zero
+  double cost{};    // C
+};
 struct Rbg { std::string id; unsigned capacity{}; Vec channel{}; };
 struct Assignment { std::string queue; std::string rbg; double score{}; };
 
@@ -32,7 +38,8 @@ Sufficient add(const Sufficient&, const Observation&);
 
 class Engine {
  public:
-  Engine(std::string source, std::string digest, double exploration);
+  Engine(std::string source, std::string digest, double exploration,
+         double control_penalty=0.0);
   void observe(const Observation&);
   Sufficient current() const;
   uint64_t active_version() const;
@@ -42,6 +49,7 @@ class Engine {
  private:
   std::string source_, digest_;
   double exploration_;
+  double control_penalty_;
   mutable std::mutex mu_;
   std::vector<Observation> local_;
   std::shared_ptr<const Snapshot> active_;

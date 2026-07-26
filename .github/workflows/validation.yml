@@ -1,0 +1,79 @@
+name: hosted-validation
+
+on:
+  push:
+    branches: [agent/orqest-public-stack-validation]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  capability-probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe hosted runner
+        id: probe
+        continue-on-error: true
+        run: scripts/capability-probe.sh evidence/capability
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capability-probe
+          path: evidence/capability
+          if-no-files-found: error
+      - if: steps.probe.outcome != 'success'
+        run: exit 1
+
+  portable:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tools/check_posix_paths.py
+      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+      - run: cmake --build build --parallel 2
+      - run: ctest --test-dir build --output-on-failure
+      - run: python3 tools/validate_contract.py
+      - run: python3 -m unittest discover -s tests -p 'test_*.py' -v
+
+  hosted-minimal-e2:
+    needs: [capability-probe, portable]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and run pinned OCUDU/FlexRIC no-RF experiment
+        id: experiment
+        continue-on-error: true
+        run: scripts/run-hosted-minimal-e2.sh evidence/hosted-minimal-e2
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hosted-minimal-e2-evidence
+          path: evidence/hosted-minimal-e2
+          if-no-files-found: error
+      - if: steps.experiment.outcome != 'success'
+        run: exit 1
+
+  orqest-overlay:
+    needs: hosted-minimal-e2
+    runs-on: ubuntu-24.04
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply overlay and run Gate B
+        id: overlay
+        continue-on-error: true
+        run: scripts/run-hosted-overlay.sh evidence/hosted-overlay
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hosted-orqest-overlay-evidence
+          path: evidence/hosted-overlay
+          if-no-files-found: error
+      - if: steps.overlay.outcome != 'success'
+        run: exit 1

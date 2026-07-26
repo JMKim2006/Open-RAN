@@ -23,6 +23,8 @@ uint32_t crc32(const Snapshot& s) {
   crc_bytes(c,&s.aggregate.count,sizeof s.aggregate.count); return ~c;
 }
 bool positive_definite(const Mat& a) {
+  for(size_t i=0;i<D;i++)for(size_t j=i+1;j<D;j++)
+    if(!std::isfinite(a[i*D+j])||std::abs(a[i*D+j]-a[j*D+i])>1e-10)return false;
   double l[D][D]{};
   for(size_t i=0;i<D;i++) for(size_t j=0;j<=i;j++) {
     double v=a[i*D+j]; for(size_t k=0;k<j;k++)v-=l[i][k]*l[j][k];
@@ -30,14 +32,40 @@ bool positive_definite(const Mat& a) {
     else l[i][j]=v/l[j][j];
   } return true;
 }
+static bool cholesky(const Mat& a, double l[D][D]) {
+  for(size_t i=0;i<D;i++) for(size_t j=0;j<=i;j++) {
+    double v=a[i*D+j];
+    for(size_t k=0;k<j;k++)v-=l[i][k]*l[j][k];
+    if(i==j) {
+      if(!(v>1e-12)||!std::isfinite(v))return false;
+      l[i][j]=std::sqrt(v);
+    } else {
+      l[i][j]=v/l[j][j];
+    }
+  }
+  return true;
+}
+static Vec cholesky_solve(const double l[D][D], const Vec& rhs) {
+  Vec y{},x{};
+  for(size_t i=0;i<D;i++) {
+    double v=rhs[i];for(size_t k=0;k<i;k++)v-=l[i][k]*y[k];
+    y[i]=v/l[i][i];
+  }
+  for(size_t ii=D;ii-->0;) {
+    double v=y[ii];for(size_t k=ii+1;k<D;k++)v-=l[k][ii]*x[k];
+    x[ii]=v/l[ii][ii];
+  }
+  return x;
+}
 Sufficient add(const Sufficient& s,const Observation& o) {
   Sufficient r=s; for(size_t i=0;i<D;i++){r.b[i]+=o.x[i]*o.reward;
     for(size_t j=0;j<D;j++)r.a[i*D+j]+=o.x[i]*o.x[j];}
   ++r.count; return r;
 }
-Engine::Engine(std::string source,std::string digest,double exploration)
- :source_(std::move(source)),digest_(std::move(digest)),exploration_(exploration) {
-  if(exploration_<0)throw std::invalid_argument("exploration");
+Engine::Engine(std::string source,std::string digest,double exploration,double control_penalty)
+ :source_(std::move(source)),digest_(std::move(digest)),exploration_(exploration),
+  control_penalty_(control_penalty) {
+  if(exploration_<0||control_penalty_<0)throw std::invalid_argument("calibration");
   Snapshot s; s.digest=digest_; for(size_t i=0;i<D;i++)s.aggregate.a[i*D+i]=1;
   s.crc=crc32(s); active_=std::make_shared<Snapshot>(s);
 }
@@ -56,12 +84,17 @@ bool Engine::install(const Snapshot& s,std::string* why){
   if(s.digest!=digest_)return fail("incompatible digest");
   if(s.crc!=crc32(s))return fail("invalid CRC");
   if(!positive_definite(s.aggregate.a))return fail("non-positive-definite design matrix");
-  for(auto&[k,v]:active_->cutoff)if(s.cutoff.count(k)&&s.cutoff.at(k)<v)return fail("regressive cutoff");
+  for(auto&[k,v]:active_->cutoff)
+    if(!s.cutoff.count(k)||s.cutoff.at(k)<v)return fail("regressive cutoff");
   auto q=s.cutoff.count(source_)?s.cutoff.at(source_):0;
   local_.erase(std::remove_if(local_.begin(),local_.end(),[&](auto&o){return o.sequence<q;}),local_.end());
   active_=std::make_shared<Snapshot>(s); return true;
 }
 std::vector<Assignment> Engine::schedule(const std::vector<Queue>&qs,const std::vector<Rbg>&rs)const{
+  Sufficient model=current();
+  double l[D][D]{};
+  if(!cholesky(model.a,l))throw std::runtime_error("non-positive-definite active design matrix");
+  const Vec theta=cholesky_solve(l,model.b);
   // Exact branch-and-bound over the capacity-expanded bipartite graph.
   std::vector<size_t> slots;for(size_t r=0;r<rs.size();r++)for(unsigned k=0;k<rs[r].capacity;k++)slots.push_back(r);
   std::vector<unsigned> used(qs.size());std::vector<Assignment> cur,best;double bestw=-1;
@@ -69,9 +102,14 @@ std::vector<Assignment> Engine::schedule(const std::vector<Queue>&qs,const std::
     if(n==slots.size()){if(total>bestw){bestw=total;best=cur;}return;}
     dfs(n+1,total); auto r=slots[n];
     for(size_t q=0;q<qs.size();q++)if(used[q]<qs[q].demand){
-      double norm=std::inner_product(qs[q].feature.begin(),qs[q].feature.end(),qs[q].feature.begin(),0.0);
-      double w=std::inner_product(qs[q].feature.begin(),qs[q].feature.end(),rs[r].channel.begin(),0.0)
-               +exploration_*std::sqrt(norm);
+      Vec x{};for(size_t i=0;i<D;i++)x[i]=qs[q].feature[i]*rs[r].channel[i];
+      const Vec vinvx=cholesky_solve(l,x);
+      const double mean=std::inner_product(x.begin(),x.end(),theta.begin(),0.0);
+      const double radius=std::sqrt(std::max(0.0,
+        std::inner_product(x.begin(),x.end(),vinvx.begin(),0.0)));
+      const double mu=std::clamp(mean+exploration_*radius,0.0,1.0);
+      const double backlog=qs[q].backlog>0?qs[q].backlog:static_cast<double>(qs[q].demand);
+      const double w=backlog*mu-control_penalty_*qs[q].cost;
       ++used[q];cur.push_back({qs[q].id,rs[r].id,w});dfs(n+1,total+w);cur.pop_back();--used[q];
     }
   };dfs(0,0);return best;
