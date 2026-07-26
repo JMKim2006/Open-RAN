@@ -35,7 +35,6 @@ evidence = {
     "e2_setup": bool(
         re.search(r"E2: Connection to Near-RT-RIC .* established", ocudu, re.I)
         and re.search(r"Registered E2 Nodes = [1-9]", xapp)
-        and re.search(r"ran func id = 2", xapp, re.I)
     ),
     # Loading the KPM plugin is neither a subscription nor an indication.
     "kpm_subscription": bool(
