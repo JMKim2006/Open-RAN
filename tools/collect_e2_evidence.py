@@ -30,15 +30,20 @@ if re.search(r"\be2ap\.", fields, re.I) and pcap.exists():
     decoded.write_text(result.stdout + result.stderr)
 evidence = {
     "stock_ocudu": True,
-    # E42 xApp/RIC setup is not E2AP E2 Setup. Require evidence at both E2 peers.
+    # E42 setup alone is insufficient. Require the DU-side E2 association and
+    # a RIC/xApp view of an E2 node that advertised the KPM RAN function.
     "e2_setup": bool(
-        re.search(r"E2.?SETUP|E2 Setup", ocudu, re.I)
-        and re.search(r"E2.?SETUP|E2 Setup", flexric, re.I)
+        re.search(r"E2: Connection to Near-RT-RIC .* established", ocudu, re.I)
+        and re.search(r"Registered E2 Nodes = [1-9]", xapp)
+        and re.search(r"ran func id = 2", xapp, re.I)
     ),
-    # Loading the KPM plugin is not a subscription or indication.
-    "kpm_subscription_or_indication": bool(
+    # Loading the KPM plugin is neither a subscription nor an indication.
+    "kpm_subscription": bool(
         re.search(r"Registered E2 Nodes = [1-9]", xapp)
-        and re.search(r"KPM.*(?:subscription|indication)|(?:subscription|indication).*KPM", xapp, re.I)
+        and re.search(r"Successfully subscribed to RAN_FUNC_ID 2", xapp, re.I)
+    ),
+    "kpm_indication": bool(
+        re.search(r"\bKPM ind_msg latency\b", xapp)
     ),
     "nonempty_e2ap_pcap": pcap.exists() and pcap.stat().st_size > 24,
     "tshark_e2ap_supported": bool(re.search(r"\be2ap\.", fields, re.I)),

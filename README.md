@@ -47,7 +47,7 @@ kernel protocol, and an actual SCTP socket creation. The minimal experiment
 fetches the official `https://gitlab.com/ocudu/ocudu.git` at the immutable SHA in
 `integration/pins.env`, builds only OCUDU gNB and FlexRIC, starts
 `ru_dummy`/`test_mode`/`no_core`, captures loopback SCTP port 36421, and requires
-real E2 Setup plus KPM subscription or indication evidence.
+real E2 Setup, KPM subscription, and KPM indication evidence.
 
 ```bash
 scripts/capability-probe.sh evidence/capability
