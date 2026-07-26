@@ -29,7 +29,6 @@ expert_execution:
   threads:
     upper_phy:
       pdsch_processor_type: generic
-      nof_pdsch_threads: 1
       nof_pusch_decoder_threads: 3
       nof_ul_threads: 1
       nof_dl_threads: 1
