@@ -72,6 +72,47 @@ jobs:
       - if: steps.experiment.outcome != 'success'
         run: exit 1
 
+  hosted-evidence-summary:
+    if: always()
+    needs: hosted-minimal-e2
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: hosted-minimal-e2-evidence
+          path: evidence
+      - name: Print bounded evidence summary
+        shell: bash
+        run: |
+          set -u
+          for file in evidence/evidence.json evidence/gate-a.json \
+            evidence/run-metadata.txt evidence/commits.txt evidence/dirty-trees.txt; do
+            echo "::group::$file"
+            if [[ -f "$file" ]]; then
+              sed -n '1,200p' "$file"
+            else
+              echo "missing"
+            fi
+            echo "::endgroup::"
+          done
+          for file in evidence/logs/ocudu.log evidence/logs/ocudu-file.log \
+            evidence/logs/flexric.log evidence/logs/kpm-xapp.log \
+            evidence/logs/tcpdump.log; do
+            echo "::group::$file (last 120 lines)"
+            if [[ -f "$file" ]]; then
+              tail -n 120 "$file"
+            else
+              echo "missing"
+            fi
+            echo "::endgroup::"
+          done
+          if [[ -f evidence/e2ap.pcap ]]; then
+            stat --printf='evidence/e2ap.pcap bytes=%s\n' evidence/e2ap.pcap
+          else
+            echo "evidence/e2ap.pcap missing"
+          fi
+
   orqest-overlay:
     needs: hosted-minimal-e2
     runs-on: ubuntu-24.04
