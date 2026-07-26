@@ -46,7 +46,8 @@ jobs:
     timeout-minutes: 330
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
+        id: ccache
         with:
           path: ~/.cache/ccache
           key: hosted-e2-ccache-${{ runner.os }}-${{ hashFiles('integration/pins.env', 'scripts/build-hosted-minimal.sh') }}
@@ -63,6 +64,11 @@ jobs:
           name: hosted-minimal-e2-evidence
           path: evidence/hosted-minimal-e2
           if-no-files-found: error
+      - if: always() && steps.ccache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/ccache
+          key: hosted-e2-ccache-${{ runner.os }}-${{ hashFiles('integration/pins.env', 'scripts/build-hosted-minimal.sh') }}
       - if: steps.experiment.outcome != 'success'
         run: exit 1
 
