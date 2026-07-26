@@ -31,7 +31,7 @@ sudo apt-get update
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
   build-essential cmake ninja-build git python3 python3-pip libsctp-dev lksctp-tools \
   libzmq3-dev libfftw3-dev libmbedtls-dev libyaml-cpp-dev libpcre2-dev \
-  libboost-all-dev libconfig++-dev tcpdump tshark
+  libboost-all-dev libconfig++-dev libgtest-dev tcpdump tshark
 "$root/scripts/fetch-minimal-pinned.sh"
 "$root/scripts/build-hosted-minimal.sh" 2>&1 | tee "$out/logs/build.log"
 sudo timeout 180 tcpdump -i lo -s 0 -w "$out/e2ap.pcap" 'sctp port 36421' \
