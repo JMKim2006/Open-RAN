@@ -96,7 +96,8 @@ jobs:
             fi
             echo "::endgroup::"
           done
-          for file in evidence/logs/ocudu.log evidence/logs/ocudu-file.log \
+          for file in evidence/logs/orchestrator.log evidence/logs/build.log \
+            evidence/logs/ocudu.log evidence/logs/ocudu-file.log \
             evidence/logs/flexric.log evidence/logs/kpm-xapp.log \
             evidence/logs/tcpdump.log; do
             echo "::group::$file (last 120 lines)"
