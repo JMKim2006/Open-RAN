@@ -6,7 +6,13 @@ import subprocess
 import sys
 
 out = pathlib.Path(sys.argv[1])
-logs = "\n".join(p.read_text(errors="replace") for p in (out / "logs").glob("*.log"))
+def read_log(name):
+    path = out / "logs" / name
+    return path.read_text(errors="replace") if path.exists() else ""
+
+ocudu = read_log("ocudu.log") + read_log("ocudu-file.log")
+flexric = read_log("flexric.log")
+xapp = read_log("kpm-xapp.log")
 pcap = out / "e2ap.pcap"
 decoded = out / "e2ap-tshark.txt"
 fields = ""
@@ -24,9 +30,15 @@ if re.search(r"\be2ap\.", fields, re.I) and pcap.exists():
     decoded.write_text(result.stdout + result.stderr)
 evidence = {
     "stock_ocudu": True,
-    "e2_setup": bool(re.search(r"E2 Setup|E2_SETUP|setup response", logs, re.I)),
+    # E42 xApp/RIC setup is not E2AP E2 Setup. Require evidence at both E2 peers.
+    "e2_setup": bool(
+        re.search(r"E2.?SETUP|E2 Setup", ocudu, re.I)
+        and re.search(r"E2.?SETUP|E2 Setup", flexric, re.I)
+    ),
+    # Loading the KPM plugin is not a subscription or indication.
     "kpm_subscription_or_indication": bool(
-        re.search(r"KPM.*(?:subscription|indication)|(?:subscription|indication).*KPM", logs, re.I)
+        re.search(r"Registered E2 Nodes = [1-9]", xapp)
+        and re.search(r"KPM.*(?:subscription|indication)|(?:subscription|indication).*KPM", xapp, re.I)
     ),
     "nonempty_e2ap_pcap": pcap.exists() and pcap.stat().st_size > 24,
     "tshark_e2ap_supported": bool(re.search(r"\be2ap\.", fields, re.I)),
