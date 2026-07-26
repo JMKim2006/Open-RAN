@@ -3,6 +3,10 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 build="$root/build/upstream"
 mkdir -p "$build"
+git -C "$root/vendor/flexric" apply --check \
+  "$root/integration/patches/flexric-gcc14-kpm-v3.patch"
+git -C "$root/vendor/flexric" apply \
+  "$root/integration/patches/flexric-gcc14-kpm-v3.patch"
 cmake -S "$root/vendor/ocudu" -B "$build/ocudu" -G Ninja \
   -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF \
   -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
