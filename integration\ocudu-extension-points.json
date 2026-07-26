@@ -1,0 +1,12 @@
+{
+  "repository": "https://github.com/ocudu/ocudu.git",
+  "revision": "9b0cfa600d9d693bf56277e4575dc8c4b8b729bb",
+  "points": [
+    {"name":"KPM DU measurement provider","path":"lib/e2/e2sm/e2sm_kpm/e2sm_kpm_du_meas_provider_impl.h","blob_sha":"545168c7f05af937612805f411e5b9269509fb0e"},
+    {"name":"scheduler metric/reporting boundary","path":"include/ocudu/scheduler/scheduler_metrics.h","blob_sha":"2f93bd0beeb40c4a1fabfbcbc5128666d6333a8b"},
+    {"name":"RC DU action executor","path":"lib/e2/e2sm/e2sm_rc/e2sm_rc_control_action_du_executor.cpp","blob_sha":"0333b4f4bad347d49f3f024889b86f03252f78c1"},
+    {"name":"RC control-service registration","path":"lib/e2/e2sm/e2sm_rc/e2sm_rc_control_service_impl.cpp","blob_sha":"93d073b9958d05e2583097e1ef56e4ce03f57191"},
+    {"name":"atomic scheduler-state installation boundary","path":"lib/e2/common/e2_du_factory.cpp","blob_sha":"aa6d5e100a0b0b808577682d4d12dcbe78a37aae"}
+  ],
+  "policy": "Bounded adapters only. Per-TTI queue-sensitive scheduling remains entirely in the O-DU."
+}
