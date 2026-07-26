@@ -29,7 +29,7 @@ set -e
 "$root/scripts/capability-probe.sh" "$out/capability"
 sudo apt-get update
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
-  build-essential cmake ninja-build git python3 python3-pip libsctp-dev lksctp-tools \
+  build-essential ccache cmake ninja-build git python3 python3-pip libsctp-dev lksctp-tools \
   libzmq3-dev libfftw3-dev libmbedtls-dev libyaml-cpp-dev libpcre2-dev \
   libboost-all-dev libconfig++-dev libgtest-dev tcpdump tshark
 "$root/scripts/fetch-minimal-pinned.sh"
