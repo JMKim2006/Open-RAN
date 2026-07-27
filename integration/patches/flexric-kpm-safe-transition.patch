@@ -2,14 +2,14 @@ diff --git a/src/xApp/plugin_agent.c b/src/xApp/plugin_agent.c
 index 0b76520..fa27c45 100644
 --- a/src/xApp/plugin_agent.c
 +++ b/src/xApp/plugin_agent.c
-@@ -38,6 +38,7 @@
- #include <sys/types.h>
- #include <sys/socket.h>
- #include <sys/stat.h>
-+#include <time.h>
- #include <unistd.h>
+@@ -25,6 +25,7 @@
+ #include "util/alg_ds/ds/lock_guard/lock_guard.h"
+ #include "util/compare.h"
+ #include "util/conf_file.h"
++#include "util/time_now_us.h"
+ #include <assert.h>
  
- static
+ #include <arpa/inet.h>
 @@ -272,7 +273,5 @@ void load_plugin_ag(plugin_ag_t* p, const char* path)
    assert(p != NULL);
    assert(path != NULL);
@@ -18,15 +18,13 @@ index 0b76520..fa27c45 100644
 -
    void* handle = dlopen(path, RTLD_NOW);
    if(handle == NULL){
-@@ -316,11 +317,40 @@ void load_plugin_ag(plugin_ag_t* p, const char* path)
+@@ -316,11 +317,38 @@ void load_plugin_ag(plugin_ag_t* p, const char* path)
  
    sm_agent_t* (*fp)(sm_io_ag_ran_t);
    fp = dlsym(handle, symbol_so);
 -  check_dl_error();
 +  const char* symbol_error = dlerror();
-+  struct timespec now = {0};
-+  clock_gettime(CLOCK_REALTIME, &now);
-+  const long long ts_us = (long long)now.tv_sec * 1000000LL + now.tv_nsec / 1000;
++  const long long ts_us = time_now_us();
 +  const char* sm_name = ptr_so_name;
 +  const size_t sm_name_len = (size_t)(match - ptr_so_name);
 +  fprintf(stderr,
