@@ -105,8 +105,7 @@ jobs:
               evidence/xapp-command.txt evidence/xapp-exit-codes.txt \
               evidence/flexric-build-flags.txt evidence/flexric.conf \
               evidence/generated-service-model-libraries.txt \
-              evidence/loaded-shared-libraries.txt evidence/xapp-dynamic-section.txt \
-              evidence/xapp-source-context.txt; do
+              evidence/loaded-shared-libraries.txt evidence/xapp-link-command.txt; do
             echo "::group::$file"
             if [[ -f "$file" ]]; then
               sed -n '1,200p' "$file"
@@ -118,8 +117,7 @@ jobs:
           for file in evidence/logs/orchestrator.log evidence/logs/build.log \
             evidence/logs/ocudu.log evidence/logs/ocudu-file.log \
             evidence/logs/flexric.log evidence/logs/kpm-xapp.log \
-            evidence/logs/kpm-xapp-asan-ubsan.log evidence/logs/kpm-xapp-gdb.log \
-            evidence/logs/tcpdump.log; do
+            evidence/logs/kpm-xapp-asan-ubsan.log evidence/logs/tcpdump.log; do
             echo "::group::$file (last 120 lines)"
             if [[ -f "$file" ]]; then
               tail -n 120 "$file"
