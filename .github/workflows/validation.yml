@@ -101,7 +101,7 @@ jobs:
         run: |
           set -u
             for file in evidence/evidence.json evidence/gate-a.json \
-              evidence/run-metadata.txt evidence/commits.txt evidence/dirty-trees.txt \
+              evidence/run-metadata.txt evidence/commits.txt \
               evidence/xapp-command.txt evidence/xapp-exit-codes.txt \
               evidence/flexric-build-flags.txt evidence/flexric.conf \
               evidence/generated-service-model-libraries.txt \
