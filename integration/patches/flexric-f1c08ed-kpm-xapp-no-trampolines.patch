@@ -339,7 +339,6 @@ diff --git a/src/util/conf_file.c b/src/util/conf_file.c
 -
 -  return strdup(db_name);
 -}
--
 +  free(line);
 +  fclose(fp); 
 +  return strdup(ip_addr);
@@ -416,7 +415,6 @@ diff --git a/src/util/conf_file.c b/src/util/conf_file.c
 +  fclose(fp);
 +  return result;
 +}
-+
 diff --git a/src/lib/msg_hand/reg_e2_nodes.c b/src/lib/msg_hand/reg_e2_nodes.c
 --- a/src/lib/msg_hand/reg_e2_nodes.c
 +++ b/src/lib/msg_hand/reg_e2_nodes.c
