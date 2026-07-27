@@ -60,28 +60,23 @@ index 0b76520..fa27c45 100644
 +          "array_length=1 function_id=%u revision_id=%u service_model=%.*s return_code=0\n",
 +          ts_us, ran_func_id, revision_id, (int)sm_name_len, sm_name);
  
-@@ -325,4 +355,17 @@ void load_plugin_ag(plugin_ag_t* p, const char* path)
--  {
+@@ -326,2 +356,15 @@ void load_plugin_ag(plugin_ag_t* p, const char* path)
 -    lock_guard(&p->sm_ds_mtx);
--    assoc_insert(&p->sm_ds, &ran_func_id, sizeof(ran_func_id), sm);
--  }
-+  int lock_rc = pthread_mutex_lock(&p->sm_ds_mtx);
-+  if(lock_rc != 0) {
++    int lock_rc = pthread_mutex_lock(&p->sm_ds_mtx);
++    if(lock_rc != 0) {
++      fprintf(stderr,
++              "KPM_DIAG ts_us=%lld phase=service-model-registration status=lock-failed array_length=1 function_id=%u revision_id=%u service_model=%.*s return_code=%d\n",
++              ts_us, ran_func_id, revision_id, (int)sm_name_len, sm_name, lock_rc);
++      sm->free_sm(sm);
++      dlclose(handle);
++      return;
++    }
+     assoc_insert(&p->sm_ds, &ran_func_id, sizeof(ran_func_id), sm);
++    const int unlock_rc = pthread_mutex_unlock(&p->sm_ds_mtx);
 +    fprintf(stderr,
-+            "KPM_DIAG ts_us=%lld phase=service-model-registration status=lock-failed "
-+            "array_length=1 function_id=%u revision_id=%u service_model=%.*s return_code=%d\n",
-+            ts_us, ran_func_id, revision_id, (int)sm_name_len, sm_name, lock_rc);
-+    sm->free_sm(sm);
-+    dlclose(handle);
-+    return;
-+  }
-+  assoc_insert(&p->sm_ds, &ran_func_id, sizeof(ran_func_id), sm);
-+  const int unlock_rc = pthread_mutex_unlock(&p->sm_ds_mtx);
-+  fprintf(stderr,
-+          "KPM_DIAG ts_us=%lld phase=service-model-registration status=%s "
-+          "array_length=1 function_id=%u revision_id=%u service_model=%.*s return_code=%d\n",
-+          ts_us, unlock_rc == 0 ? "after" : "unlock-failed",
-+          ran_func_id, revision_id, (int)sm_name_len, sm_name, unlock_rc);
++            "KPM_DIAG ts_us=%lld phase=service-model-registration status=%s array_length=1 function_id=%u revision_id=%u service_model=%.*s return_code=%d\n",
++            ts_us, unlock_rc == 0 ? "after" : "unlock-failed",
++            ran_func_id, revision_id, (int)sm_name_len, sm_name, unlock_rc);
 diff --git a/examples/xApp/c/monitor/xapp_kpm_moni.c b/examples/xApp/c/monitor/xapp_kpm_moni.c
 index 5fa00cc..6e6434d 100644
 --- a/examples/xApp/c/monitor/xapp_kpm_moni.c
