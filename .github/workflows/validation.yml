@@ -1,6 +1,9 @@
 name: hosted-validation
 
 on:
+  push:
+    branches: [agent/orqest-public-stack-validation]
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -25,126 +28,85 @@ jobs:
       - if: steps.probe.outcome != 'success'
         run: exit 1
 
-  portable:
+  portable-and-g0:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y libsctp-dev
       - run: python3 tools/check_posix_paths.py
       - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
       - run: cmake --build build --parallel 2
       - run: ctest --test-dir build --output-on-failure
       - run: python3 tools/validate_contract.py
       - run: python3 -m unittest discover -s tests -p 'test_*.py' -v
+      - name: Validate preserved Gate G0 manifest
+        run: python3 tools/evidence_gate.py --gate G0 --evidence evidence/g0-public-stack.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gate-g0-public-stack-manifest
+          path: evidence/g0-public-stack.json
+          if-no-files-found: error
 
-  hosted-minimal-e2:
-    needs: [capability-probe, portable]
+  orqest-sctp-carrier:
+    needs: [capability-probe, portable-and-g0]
     runs-on: ubuntu-24.04
-    timeout-minutes: 330
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/cache/restore@v4
-        id: ccache
-        with:
-          path: ~/.cache/ccache
-          key: hosted-e2-ccache-${{ runner.os }}-${{ hashFiles('integration/pins.env', 'integration/patches/flexric-*.patch', 'scripts/build-hosted-minimal.sh') }}
-          restore-keys: hosted-e2-ccache-${{ runner.os }}-
-      - uses: actions/cache/restore@v4
-        id: ocudu-build
-        with:
-          path: |
-            vendor/ocudu
-            build/upstream/ocudu
-          key: ocudu-build-ubuntu-24.04-9b0cfa600d9d693bf56277e4575dc8c4b8b729bb-release-v1
-      - name: Build and run pinned OCUDU/FlexRIC no-RF experiment
-        id: experiment
+      - name: Run actual SCTP ORQEST carrier
+        id: carrier
         continue-on-error: true
-        env:
-          CCACHE_MAXSIZE: 5G
-        run: scripts/run-hosted-minimal-e2.sh evidence/hosted-minimal-e2
+        run: scripts/run-orqest-sctp-harness.sh evidence/orqest-sctp
       - if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: hosted-minimal-e2-evidence
-          path: evidence/hosted-minimal-e2
+          name: orqest-sctp-g1-g2-evidence
+          path: evidence/orqest-sctp
           if-no-files-found: error
-      - if: always() && steps.ccache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: ~/.cache/ccache
-          key: hosted-e2-ccache-${{ runner.os }}-${{ hashFiles('integration/pins.env', 'integration/patches/flexric-*.patch', 'scripts/build-hosted-minimal.sh') }}
-      - if: always() && steps.ocudu-build.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: |
-            vendor/ocudu
-            build/upstream/ocudu
-          key: ocudu-build-ubuntu-24.04-9b0cfa600d9d693bf56277e4575dc8c4b8b729bb-release-v1
-      - if: steps.experiment.outcome != 'success'
+      - if: steps.carrier.outcome != 'success'
         run: exit 1
 
-  hosted-evidence-summary:
+  evidence-summary:
     if: always()
-    needs: hosted-minimal-e2
+    needs: orqest-sctp-carrier
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: hosted-minimal-e2-evidence
+          name: orqest-sctp-g1-g2-evidence
           path: evidence
-      - name: Print bounded evidence summary
+      - name: Print bounded G1/G2 summary
         shell: bash
         run: |
           set -u
-          for file in evidence/evidence.json evidence/gate-a.json \
-            evidence/run-metadata.txt evidence/commits.txt evidence/pins.env \
-            evidence/patch-sha256.txt evidence/kpm-xapp-gnu-stack.txt \
-            evidence/xapp-command.txt evidence/xapp-exit-codes.txt \
-            evidence/flexric-build-flags.txt evidence/flexric.conf \
-            evidence/generated-service-model-libraries.txt \
-            evidence/loaded-shared-libraries.txt evidence/xapp-link-command.txt; do
+          for file in evidence/evidence.json evidence/gate-g1.json evidence/gate-g2.json \
+            evidence/repository-commit.txt evidence/dirty-tree.txt \
+            evidence/binary-sha256.txt evidence/sha256-manifest.txt \
+            evidence/orqest-ric-gnu-stack.txt evidence/orqest-du-gnu-stack.txt \
+            evidence/timeline.json evidence/sctp-tshark.txt; do
             echo "::group::$file"
             if [[ -f "$file" ]]; then
-              sed -n '1,200p' "$file"
+              sed -n '1,240p' "$file"
             else
               echo "missing"
             fi
             echo "::endgroup::"
           done
-          for file in evidence/logs/orchestrator.log evidence/logs/build.log \
-            evidence/logs/ocudu.log evidence/logs/ocudu-file.log \
-            evidence/logs/flexric.log evidence/logs/kpm-xapp.log \
-            evidence/logs/kpm-xapp-asan-ubsan.log evidence/logs/tcpdump.log; do
-            echo "::group::$file (last 120 lines)"
-            if [[ -f "$file" ]]; then
-              tail -n 120 "$file"
-            else
-              echo "missing"
-            fi
+          for file in evidence/logs/orqest-ric.log evidence/logs/orqest-du.log \
+            evidence/logs/tcpdump.log; do
+            echo "::group::$file"
+            if [[ -f "$file" ]]; then tail -n 160 "$file"; else echo "missing"; fi
             echo "::endgroup::"
           done
-          if [[ -f evidence/e2ap.pcap ]]; then
-            stat --printf='evidence/e2ap.pcap bytes=%s\n' evidence/e2ap.pcap
-          else
-            echo "evidence/e2ap.pcap missing"
+          if [[ -f evidence/orqest-sctp.pcap ]]; then
+            stat --printf='evidence/orqest-sctp.pcap bytes=%s\n' evidence/orqest-sctp.pcap
           fi
 
-  orqest-overlay:
-    needs: hosted-minimal-e2
+  g3-optional-status:
     runs-on: ubuntu-24.04
-    timeout-minutes: 330
     steps:
-      - uses: actions/checkout@v4
-      - name: Apply overlay and run Gate B
-        id: overlay
-        continue-on-error: true
-        run: scripts/run-hosted-overlay.sh evidence/hosted-overlay
-      - if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: hosted-orqest-overlay-evidence
-          path: evidence/hosted-overlay
-          if-no-files-found: error
-      - if: steps.overlay.outcome != 'success'
-        run: exit 1
+      - run: |
+          echo "G3 is optional and was not executed."
+          echo "No stock KPM subscription or indication is claimed."
