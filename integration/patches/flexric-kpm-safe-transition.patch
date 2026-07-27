@@ -2,9 +2,9 @@ diff --git a/src/xApp/plugin_agent.c b/src/xApp/plugin_agent.c
 index 0b76520..fa27c45 100644
 --- a/src/xApp/plugin_agent.c
 +++ b/src/xApp/plugin_agent.c
-@@ -22,6 +22,7 @@
- #include <stdlib.h>
- #include <string.h>
+@@ -38,6 +38,7 @@
+ #include <sys/types.h>
+ #include <sys/socket.h>
  #include <sys/stat.h>
 +#include <time.h>
  #include <unistd.h>
