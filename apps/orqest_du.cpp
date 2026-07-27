@@ -59,7 +59,7 @@ int main(int argc,char**argv){
   bool bad_crc=!wire::decode_snapshot(corrupt,unused,&why)&&why=="invalid CRC";
   auto malformed=frame;malformed.resize(9);
   bool malformed_rejected=!wire::decode_snapshot(malformed,unused,&why);
-  event(log,"{\"event\":\"negative_snapshot_validation\",\"stale_rejected\":"+(stale?"true":"false")+",\"regressive_rejected\":"+(regressive?"true":"false")+",\"incompatible_rejected\":"+(incompatible?"true":"false")+",\"crc_invalid_rejected\":"+(bad_crc?"true":"false")+",\"malformed_rejected\":"+(malformed_rejected?"true":"false")+"}");
+  event(log,std::string("{\\"event\\":\\"negative_snapshot_validation\\",\\"stale_rejected\\":")+(stale?"true":"false")+",\\"regressive_rejected\\":"+(regressive?"true":"false")+",\\"incompatible_rejected\\":"+(incompatible?"true":"false")+",\\"crc_invalid_rejected\\":"+(bad_crc?"true":"false")+",\\"malformed_rejected\\":"+(malformed_rejected?"true":"false")+"}");
   Vec a{1,0,0,0,0,0},b{0,1,0,0,0,0};
   auto assignments=engine.schedule({{"q-high",1,a,10,1},{"q-low",1,b,2,1}},{{"rbg-0",1,a},{"rbg-1",1,b}});
   std::map<std::string,unsigned> rbg_used,queue_used;
@@ -67,12 +67,12 @@ int main(int argc,char**argv){
   bool capacity=assignments.size()<=2;
   for(const auto&[id,n]:rbg_used)capacity=capacity&&n<=1;
   for(const auto&[id,n]:queue_used)capacity=capacity&&n<=1;
-  event(log,"{\"event\":\"du_local_matching\",\"queue_state_local_only\":true,\"assignment_count\":"+std::to_string(assignments.size())+",\"capacity_valid\":"+(capacity?"true":"false")+"}");
+  event(log,std::string("{\\"event\\":\\"du_local_matching\\",\\"queue_state_local_only\\":true,\\"assignment_count\\":")+std::to_string(assignments.size())+",\\"capacity_valid\\":"+(capacity?"true":"false")+"}");
   wire::DuReport ack{"du-a","orqest-d6-compat-v1",7,prefix(7),engine.active_version()};
   if(!send_frame(fd,wire::encode_report(ack)))return 5;
   event(log,R"({"event":"active_version_report_sent","source":"du-a","cutoff":7,"count":7,"active_version":1})");
   close(fd);
   const bool negatives=stale&&regressive&&incompatible&&bad_crc&&malformed_rejected;
-  event(log,"{\"event\":\"du_complete\",\"history_complete\":"+(complete?"true":"false")+",\"negative_validation\":"+(negatives?"true":"false")+",\"capacity_valid\":"+(capacity?"true":"false")+"}");
+  event(log,std::string("{\\"event\\":\\"du_complete\\",\\"history_complete\\":")+(complete?"true":"false")+",\\"negative_validation\\":"+(negatives?"true":"false")+",\\"capacity_valid\\":"+(capacity?"true":"false")+"}");
   return complete&&negatives&&capacity?0:6;
 }
