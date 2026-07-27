@@ -265,7 +265,7 @@ diff --git a/src/util/conf_file.c b/src/util/conf_file.c
  }
  
  int is_regular_file(const char *path)
-@@ -440,74 +440,77 @@
+@@ -440,73 +440,76 @@
 -  fclose(fp); 
 -  return strdup(ip_addr);
 -}
