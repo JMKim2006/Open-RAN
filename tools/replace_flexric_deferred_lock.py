@@ -70,25 +70,49 @@ replace_once(
 
 
 messages = root / "src/xApp/msg_handler_xapp.c"
-replace_once(messages, "  defer({ e2ap_free_e42_setup_request(&sr);  } );\n", "")
-replace_once(messages, "  defer({free_byte_array(ba); } ); \n", "")
-replace_once(
-    messages,
-    "  e2ap_msg_t ans = {.type = NONE_E2_MSG_TYPE };\n  return ans;\n}\n\ne2ap_msg_t e2ap_handle_e42_ric_subscription_request_xapp",
-    "  free_byte_array(ba);\n  e2ap_free_e42_setup_request(&sr);\n  e2ap_msg_t ans = {.type = NONE_E2_MSG_TYPE };\n  return ans;\n}\n\ne2ap_msg_t e2ap_handle_e42_ric_subscription_request_xapp",
+message_text = messages.read_text(encoding="utf-8")
+
+def edit_message_function(name: str, edits: list[tuple[str, str]]) -> None:
+    global message_text
+    marker = f"e2ap_msg_t {name}("
+    start = message_text.index(marker)
+    end = message_text.index("\n}\n", start) + 3
+    body = message_text[start:end]
+    for old, new in edits:
+        if body.count(old) != 1:
+            raise SystemExit(f"pinned FlexRIC anchor changed in {name}; refusing transformation")
+        body = body.replace(old, new, 1)
+    message_text = message_text[:start] + body + message_text[end:]
+
+edit_message_function(
+    "e2ap_handle_e42_setup_request_xapp",
+    [
+        ("  defer({ e2ap_free_e42_setup_request(&sr);  } );\n", ""),
+        ("  defer({free_byte_array(ba); } ); \n", ""),
+        ("  e2ap_msg_t ans = {.type = NONE_E2_MSG_TYPE };\n",
+         "  free_byte_array(ba);\n  e2ap_free_e42_setup_request(&sr);\n"
+         "  e2ap_msg_t ans = {.type = NONE_E2_MSG_TYPE };\n"),
+    ],
 )
-replace_once(messages, "  defer({ free_byte_array(ba_msg) ;}; );\n", "")
-replace_once(
-    messages,
-    "  e2ap_msg_t ans = {.type = NONE_E2_MSG_TYPE};\n  return ans;\n}\n\n \n\ne2ap_msg_t e2ap_handle_e42_subscription_delete_request_xapp",
-    "  free_byte_array(ba_msg);\n  e2ap_msg_t ans = {.type = NONE_E2_MSG_TYPE};\n  return ans;\n}\n\n \n\ne2ap_msg_t e2ap_handle_e42_subscription_delete_request_xapp",
+edit_message_function(
+    "e2ap_handle_e42_ric_subscription_request_xapp",
+    [
+        ("  defer({ free_byte_array(ba_msg) ;}; );\n", ""),
+        ("  e2ap_msg_t ans = {.type = NONE_E2_MSG_TYPE};\n",
+         "  free_byte_array(ba_msg);\n"
+         "  e2ap_msg_t ans = {.type = NONE_E2_MSG_TYPE};\n"),
+    ],
 )
-replace_once(messages, "  defer({ free_byte_array(ba_msg) ;}; );\n", "")
-replace_once(
-    messages,
-    "  e2ap_msg_t ans = {.type = NONE_E2_MSG_TYPE};\n  return ans; \n}\n\ne2ap_msg_t e2ap_handle_e42_ric_control_request_xapp",
-    "  free_byte_array(ba_msg);\n  e2ap_msg_t ans = {.type = NONE_E2_MSG_TYPE};\n  return ans; \n}\n\ne2ap_msg_t e2ap_handle_e42_ric_control_request_xapp",
+edit_message_function(
+    "e2ap_handle_e42_subscription_delete_request_xapp",
+    [
+        ("  defer({ free_byte_array(ba_msg) ;}; );\n", ""),
+        ("  e2ap_msg_t ans = {.type = NONE_E2_MSG_TYPE};\n",
+         "  free_byte_array(ba_msg);\n"
+         "  e2ap_msg_t ans = {.type = NONE_E2_MSG_TYPE};\n"),
+    ],
 )
+messages.write_text(message_text, encoding="utf-8")
 
 pending = root / "src/xApp/pending_event_xapp.c"
 replace_once(
