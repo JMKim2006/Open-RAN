@@ -10,7 +10,7 @@ index 0b76520..fa27c45 100644
  #include <unistd.h>
  
  static
-@@ -272,7 +273,6 @@ void load_plugin_ag(plugin_ag_t* p, const char* path)
+@@ -272,7 +273,5 @@ void load_plugin_ag(plugin_ag_t* p, const char* path)
    assert(p != NULL);
    assert(path != NULL);
  
@@ -18,7 +18,7 @@ index 0b76520..fa27c45 100644
 -
    void* handle = dlopen(path, RTLD_NOW);
    if(handle == NULL){
-@@ -316,10 +317,30 @@ void load_plugin_ag(plugin_ag_t* p, const char* path)
+@@ -316,11 +317,40 @@ void load_plugin_ag(plugin_ag_t* p, const char* path)
  
    sm_agent_t* (*fp)(sm_io_ag_ran_t);
    fp = dlsym(handle, symbol_so);
@@ -75,7 +75,7 @@ index 5fa00cc..6e6434d 100644
  #include <unistd.h>
  #include <signal.h>
  #include <pthread.h>
-@@ -321,8 +322,25 @@ static
+@@ -321,11 +322,24 @@ static
  kpm_sub_data_t gen_kpm_subs(kpm_ran_function_def_t const* ran_func)
  {
 -  assert(ran_func != NULL);
@@ -104,7 +104,7 @@ index 5fa00cc..6e6434d 100644
 +    return kpm_sub;
    kpm_sub.ev_trg_def.type = FORMAT_1_RIC_EVENT_TRIGGER;
    kpm_sub.ev_trg_def.kpm_ric_event_trigger_format_1.report_period_ms = period_ms;
-@@ -335,11 +353,10 @@ kpm_sub_data_t gen_kpm_subs(kpm_ran_function_def_t const* ran_func)
+@@ -335,9 +353,8 @@ kpm_sub_data_t gen_kpm_subs(kpm_ran_function_def_t const* ran_func)
  
    // Multiple Action Definitions in one SUBSCRIPTION message is not supported in this project
    // Multiple REPORT Styles = Multiple Action Definition = Multiple SUBSCRIPTION messages
@@ -125,7 +125,7 @@ index 5fa00cc..6e6434d 100644
  }
  
  int main(int argc, char* argv[])
-@@ -361,12 +378,16 @@ int main(int argc, char* argv[])
+@@ -361,12 +378,15 @@ int main(int argc, char* argv[])
    fr_args_t args = init_fr_args(argc, argv);
  
    // Init the xApp
@@ -142,7 +142,7 @@ index 5fa00cc..6e6434d 100644
 +    return EXIT_FAILURE;
  
    printf("Connected E2 nodes = %d\n", nodes.len);
-@@ -388,19 +409,34 @@ int main(int argc, char* argv[])
+@@ -388,16 +409,27 @@ int main(int argc, char* argv[])
    for (size_t i = 0; i < nodes.len; ++i) {
      e2_node_connected_xapp_t* n = &nodes.n[i];
  
