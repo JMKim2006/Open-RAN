@@ -1,25 +1,37 @@
-# Local execution log
+# Execution log
 
-Date: 2026-07-27 (Asia/Seoul). Host: Windows Codex workspace.
+Date: 2026-07-27 (Asia/Seoul).
 
-| Command | Result |
+## Retired generic FlexRIC xApp path
+
+The generic KPM xApp repair cycle stopped after Actions run
+`30273703324`. The pinned OCUDU build was reused. The no-trampoline patch
+applied, but strict compilation stopped in the unrelated upstream SQLite wrapper
+on five `-Werror=format-truncation` diagnostics. The xApp did not run, no
+executable stack was enabled, no KPM subscription/indication was claimed, and
+the ORQEST overlay gate was not run.
+
+No further FlexRIC, SQLite, E42, or generic xApp repair is authorized by the
+current workflow.
+
+## ORQEST carrier commands
+
+The standard GitHub-hosted `ubuntu-24.04` workflow executes:
+
+| Command | Expected evidence |
 |---|---|
-| `cmake -S . -B build` | **Not run:** `cmake` is not installed on this host. |
-| `python tools/validate_contract.py` | **Not run:** the Windows Store Python shim was not executable. |
-| Bundled Python `tools/validate_contract.py` | **PASS:** `contract: PASS`. |
-| Bundled Python `-m unittest discover -s tests -p 'test_*.py' -v` | **PASS:** 2 tests passed. |
-| Bundled Python parse of every `*.json` | **PASS:** all JSON decoded. |
-| Bundled Python/PyYAML parse of workflow YAML | **Not run:** `yaml` module is unavailable. |
-| `winget install Kitware.CMake Ninja-build.Ninja LLVM.LLVM` | **Blocked:** the Codex sandbox cannot execute the WindowsApps shim. |
-| Bundled Python `pip install --target .tools/python cmake ninja pyyaml` | **Blocked:** outbound package network access returned WinError 10013. |
-| `bash -n scripts/*.sh` | **Not run:** Bash is unavailable. |
-| `git init -b main` | **PASS:** initialized the local validation repository. |
-| `git switch -c agent/orqest-public-stack-validation` | **PASS:** created the requested branch. |
-| `gh --version` | **PASS:** 2.96.0. |
-| `gh auth status` | **Unavailable in sandbox:** direct GitHub network access is blocked; publishing uses the installed GitHub Connector instead. |
+| `scripts/capability-probe.sh evidence/capability` | Docker/sudo/resources/SCTP protocol and real SCTP socket probe |
+| `cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release` | Portable C++17 configuration |
+| `cmake --build build --parallel 2` | Engine, wire library, tests, `orqest-ric`, `orqest-du` |
+| `ctest --test-dir build --output-on-failure` | Engine and deterministic carrier tests |
+| `python3 tools/evidence_gate.py --gate G0 --evidence evidence/g0-public-stack.json` | Preserved G0 manifest only |
+| `scripts/run-orqest-sctp-harness.sh evidence/orqest-sctp` | Actual multi-process SCTP carrier run |
+| `readelf -W -l build/orqest-ric` and `orqest-du` | Non-executable GNU_STACK evidence |
+| `tcpdump -i lo -s 0 ... 'sctp port 39001'` | Actual SCTP PCAP |
+| `tshark -r ... -Y sctp` | Parsed SCTP packet summary |
+| `python3 tools/evidence_gate.py --gate G1 ...` | Wire/provenance gate |
+| `python3 tools/evidence_gate.py --gate G2 ...` | Closed-loop gate |
 
-No SCTP, E2AP, OCUDU, UE, OTA, PCAP, or interoperability evidence was generated
-locally. Standard GitHub-hosted `ubuntu-24.04` jobs now perform both portable
-validation and the staged no-RF experiment. The workflow must upload exact probe
-and failure artifacts when the hosted environment or upstream integration is
-insufficient.
+Every hosted run uploads logs and exact failure evidence even when a gate fails.
+Core dumps are disabled. No debugger, memory dump, environment dump, credential
+collection, unrelated process inspection, or privileged host debugging is used.
