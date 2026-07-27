@@ -100,8 +100,13 @@ jobs:
         shell: bash
         run: |
           set -u
-          for file in evidence/evidence.json evidence/gate-a.json \
-            evidence/run-metadata.txt evidence/commits.txt evidence/dirty-trees.txt; do
+            for file in evidence/evidence.json evidence/gate-a.json \
+              evidence/run-metadata.txt evidence/commits.txt evidence/dirty-trees.txt \
+              evidence/xapp-command.txt evidence/xapp-exit-codes.txt \
+              evidence/flexric-build-flags.txt evidence/flexric.conf \
+              evidence/generated-service-model-libraries.txt \
+              evidence/loaded-shared-libraries.txt evidence/xapp-dynamic-section.txt \
+              evidence/xapp-source-context.txt; do
             echo "::group::$file"
             if [[ -f "$file" ]]; then
               sed -n '1,200p' "$file"
@@ -147,3 +152,4 @@ jobs:
           if-no-files-found: error
       - if: steps.overlay.outcome != 'success'
         run: exit 1
+

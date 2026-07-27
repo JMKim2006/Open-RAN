@@ -16,13 +16,20 @@ ulimit -c unlimited 2>/dev/null || true
   printf 'core_pattern='; cat /proc/sys/kernel/core_pattern
 } > "$out/xapp-command.txt"
 ldd "$xapp" > "$out/loaded-shared-libraries.txt" 2>&1
+readelf -d "$xapp" > "$out/xapp-dynamic-section.txt" 2>&1 || true
+source_file="$root/vendor/flexric/examples/xApp/c/monitor/xapp_kpm_moni.c"
+if [[ -f "$source_file" ]]; then
+  sed -n '320,370p' "$source_file" > "$out/xapp-source-context.txt"
+fi
 
 set +e
-timeout 60 stdbuf -oL -eL "$xapp" \
+timeout 60 "$xapp" \
   > >(tee "$out/logs/kpm-xapp-asan-ubsan.log") 2>&1
 asan_rc=$?
-timeout 60 stdbuf -oL -eL gdb -q -batch \
+timeout 60 gdb -q -batch \
   -ex "set pagination off" \
+  -ex "set environment ASAN_OPTIONS abort_on_error=1:detect_leaks=0:symbolize=1" \
+  -ex "set environment UBSAN_OPTIONS print_stacktrace=1:halt_on_error=1" \
   -ex run \
   -ex "info sharedlibrary" \
   -ex "thread apply all bt full" \
@@ -35,3 +42,4 @@ cat "$out/logs/kpm-xapp-asan-ubsan.log" "$out/logs/kpm-xapp-gdb.log" \
 find . /tmp -maxdepth 2 -type f -name 'core*' -exec cp -n {} "$out/" \; 2>/dev/null || true
 printf 'asan_exit=%s\ngdb_exit=%s\n' "$asan_rc" "$gdb_rc" > "$out/xapp-exit-codes.txt"
 exit "$asan_rc"
+
