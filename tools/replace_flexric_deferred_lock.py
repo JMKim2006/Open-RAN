@@ -66,6 +66,34 @@ replace_once(
 )
 
 
+
+endpoint = root / "src/lib/ep/e2ap_ep.c"
+replace_once(
+    endpoint,
+    """  lock_guard(&((e2ap_ep_t*)ep)->mtx);
+
+  const int rc = sctp_sendmsg(
+      ep->fd, (void *)ba.buf, ba.len, (struct sockaddr *)addr, sizeof(*addr),
+      sri->sinfo_ppid, sri->sinfo_flags, sri->sinfo_stream, 0, 0);
+  assert(rc != 0);
+  if(rc == -1){
+    printf("Error sending sctp message \\n");
+  }
+""",
+    """  const int lock_rc = pthread_mutex_lock(&((e2ap_ep_t*)ep)->mtx);
+  assert(lock_rc == 0);
+  const int rc = sctp_sendmsg(
+      ep->fd, (void *)ba.buf, ba.len, (struct sockaddr *)addr, sizeof(*addr),
+      sri->sinfo_ppid, sri->sinfo_flags, sri->sinfo_stream, 0, 0);
+  const int unlock_rc = pthread_mutex_unlock(&((e2ap_ep_t*)ep)->mtx);
+  assert(unlock_rc == 0);
+  assert(rc != 0);
+  if(rc == -1){
+    printf("Error sending sctp message \\n");
+  }
+""",
+)
+
 queue = root / "src/util/alg_ds/ds/tsn_queue/tsn_queue.c"
 replace_once(
     queue,
