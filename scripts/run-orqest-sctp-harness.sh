@@ -4,7 +4,7 @@ ulimit -c 0
 root="$(cd "$(dirname "$0")/.." && pwd)"
 out="${1:-$root/evidence/orqest-sctp}"
 build="$root/build/orqest-sctp"
-mkdir -p "$out/logs"
+mkdir -p "$out/logs"\nexec > >(tee "$out/logs/orchestrator.log") 2>&1
 cleanup() {
   set +e
   [[ -n "${du_pid:-}" ]] && kill -TERM "$du_pid" 2>/dev/null || true
