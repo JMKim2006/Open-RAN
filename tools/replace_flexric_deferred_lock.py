@@ -67,6 +67,102 @@ replace_once(
 
 
 
+
+pending = root / "src/xApp/pending_event_xapp.c"
+replace_once(
+    pending,
+    """  lock_guard(&p->pend_mtx);
+  bi_map_insert(&p->pending, &fd, sizeof(fd), ev, sizeof(*ev));
+""",
+    """  int lock_rc = pthread_mutex_lock(&p->pend_mtx);
+  assert(lock_rc == 0);
+  bi_map_insert(&p->pending, &fd, sizeof(fd), ev, sizeof(*ev));
+  int unlock_rc = pthread_mutex_unlock(&p->pend_mtx);
+  assert(unlock_rc == 0);
+""",
+)
+replace_once(
+    pending,
+    """  lock_guard(&p->pend_mtx);
+
+  assoc_rb_tree_t* map = &p->pending.left;
+
+  void* it = assoc_front(map);
+  void* end = assoc_end(map);
+  it = find_if(map, it, end, &fd, eq_int);
+  return it != end;
+""",
+    """  int lock_rc = pthread_mutex_lock(&p->pend_mtx);
+  assert(lock_rc == 0);
+  assoc_rb_tree_t* map = &p->pending.left;
+  void* it = assoc_front(map);
+  void* end = assoc_end(map);
+  it = find_if(map, it, end, &fd, eq_int);
+  const bool found = it != end;
+  int unlock_rc = pthread_mutex_unlock(&p->pend_mtx);
+  assert(unlock_rc == 0);
+  return found;
+""",
+)
+replace_once(
+    pending,
+    """  lock_guard(&p->pend_mtx);
+
+  bmr_iter_t it = bi_map_front_right(&p->pending); 
+  bmr_iter_t end = bi_map_end_right(&p->pending); 
+  it = find_if_bi_map_right(&p->pending, it, end, ev, eq_ev);
+  return it.it != end.it;
+""",
+    """  int lock_rc = pthread_mutex_lock(&p->pend_mtx);
+  assert(lock_rc == 0);
+  bmr_iter_t it = bi_map_front_right(&p->pending);
+  bmr_iter_t end = bi_map_end_right(&p->pending);
+  it = find_if_bi_map_right(&p->pending, it, end, ev, eq_ev);
+  const bool found = it.it != end.it;
+  int unlock_rc = pthread_mutex_unlock(&p->pend_mtx);
+  assert(unlock_rc == 0);
+  return found;
+""",
+)
+replace_once(
+    pending,
+    """    lock_guard(&p->pend_mtx);
+    size_t sz = bi_map_size(&p->pending); 
+""",
+    """    int lock_rc = pthread_mutex_lock(&p->pend_mtx);
+    assert(lock_rc == 0);
+    size_t sz = bi_map_size(&p->pending);
+""",
+)
+replace_once(
+    pending,
+    """    assert(sz == bi_map_size(&p->pending) + 1 );
+  }
+""",
+    """    assert(sz == bi_map_size(&p->pending) + 1);
+    int unlock_rc = pthread_mutex_unlock(&p->pend_mtx);
+    assert(unlock_rc == 0);
+  }
+""",
+)
+replace_once(
+    pending,
+    """    lock_guard(&p->pend_mtx);
+    // It returns the void* of key2. the void* of the key1 is freed
+    
+    void (*free_fd)(void*) = NULL; 
+    ev = bi_map_extract_left(&p->pending, &fd, sizeof(int), free_fd);
+""",
+    """    int lock_rc = pthread_mutex_lock(&p->pend_mtx);
+    assert(lock_rc == 0);
+    // It returns the void* of key2. the void* of the key1 is freed
+    void (*free_fd)(void*) = NULL;
+    ev = bi_map_extract_left(&p->pending, &fd, sizeof(int), free_fd);
+    int unlock_rc = pthread_mutex_unlock(&p->pend_mtx);
+    assert(unlock_rc == 0);
+""",
+)
+
 endpoint = root / "src/lib/ep/e2ap_ep.c"
 replace_once(
     endpoint,
