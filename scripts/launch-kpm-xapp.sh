@@ -7,39 +7,28 @@ xapp="$(find "$root/build/upstream/flexric" -type f \
 test -n "$xapp"
 export ASAN_OPTIONS=abort_on_error=1:detect_leaks=0:symbolize=1
 export UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1
-ulimit -c unlimited 2>/dev/null || true
+ulimit -c 0
 {
   printf 'xapp='; printf '%q ' "$xapp"; printf '\n'
   printf 'ASAN_OPTIONS=%s\n' "$ASAN_OPTIONS"
   printf 'UBSAN_OPTIONS=%s\n' "$UBSAN_OPTIONS"
   printf 'core_limit='; ulimit -c
-  printf 'core_pattern='; cat /proc/sys/kernel/core_pattern
 } > "$out/xapp-command.txt"
-ldd "$xapp" > "$out/loaded-shared-libraries.txt" 2>&1
-readelf -d "$xapp" > "$out/xapp-dynamic-section.txt" 2>&1 || true
-source_file="$root/vendor/flexric/examples/xApp/c/monitor/xapp_kpm_moni.c"
-if [[ -f "$source_file" ]]; then
-  sed -n '320,370p' "$source_file" > "$out/xapp-source-context.txt"
+if command -v ldd >/dev/null 2>&1; then
+  ldd "$xapp" > "$out/loaded-shared-libraries.txt" 2>&1
+else
+  cp "$root/build/upstream/flexric/examples/xApp/c/monitor/CMakeFiles/xapp_kpm_moni.dir/link.txt" \
+    "$out/xapp-link-command.txt" 2>/dev/null || true
 fi
 
 set +e
-timeout 60 "$xapp" \
-  > >(tee "$out/logs/kpm-xapp-asan-ubsan.log") 2>&1
-asan_rc=$?
-timeout 60 gdb -q -batch \
-  -ex "set pagination off" \
-  -ex "set environment ASAN_OPTIONS abort_on_error=1:detect_leaks=0:symbolize=1" \
-  -ex "set environment UBSAN_OPTIONS print_stacktrace=1:halt_on_error=1" \
-  -ex run \
-  -ex "info sharedlibrary" \
-  -ex "thread apply all bt full" \
-  --args "$xapp" \
-  > >(tee "$out/logs/kpm-xapp-gdb.log") 2>&1
-gdb_rc=$?
+timeout 60 "$xapp" > "$out/logs/kpm-xapp.log" 2>&1
+xapp_rc=$?
 set -e
-cat "$out/logs/kpm-xapp-asan-ubsan.log" "$out/logs/kpm-xapp-gdb.log" \
-  > "$out/logs/kpm-xapp.log"
-find . /tmp -maxdepth 2 -type f -name 'core*' -exec cp -n {} "$out/" \; 2>/dev/null || true
-printf 'asan_exit=%s\ngdb_exit=%s\n' "$asan_rc" "$gdb_rc" > "$out/xapp-exit-codes.txt"
-exit "$asan_rc"
-
+signal=0
+if (( xapp_rc > 128 )); then
+  signal=$((xapp_rc - 128))
+fi
+cp "$out/logs/kpm-xapp.log" "$out/logs/kpm-xapp-asan-ubsan.log"
+printf 'exit_code=%s\nsignal=%s\n' "$xapp_rc" "$signal" > "$out/xapp-exit-codes.txt"
+exit "$xapp_rc"
