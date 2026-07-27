@@ -60,7 +60,7 @@ index 0b76520..fa27c45 100644
 +          "array_length=1 function_id=%u revision_id=%u service_model=%.*s return_code=0\n",
 +          ts_us, ran_func_id, revision_id, (int)sm_name_len, sm_name);
  
-@@ -325,7 +355,20 @@ void load_plugin_ag(plugin_ag_t* p, const char* path)
+@@ -325,4 +355,17 @@ void load_plugin_ag(plugin_ag_t* p, const char* path)
 -  {
 -    lock_guard(&p->sm_ds_mtx);
 -    assoc_insert(&p->sm_ds, &ran_func_id, sizeof(ran_func_id), sm);
@@ -82,10 +82,6 @@ index 0b76520..fa27c45 100644
 +          "array_length=1 function_id=%u revision_id=%u service_model=%.*s return_code=%d\n",
 +          ts_us, unlock_rc == 0 ? "after" : "unlock-failed",
 +          ran_func_id, revision_id, (int)sm_name_len, sm_name, unlock_rc);
- 
--//  printf("AGENT: Accepting SM ID = %d with def = %s \\n", sm->ran_func_id, sm->ran_func_name);
-+//  printf("AGENT: Accepting SM ID = %d with def = %s \\n", sm->ran_func_id, sm->ran_func_name);
- }
 diff --git a/examples/xApp/c/monitor/xapp_kpm_moni.c b/examples/xApp/c/monitor/xapp_kpm_moni.c
 index 5fa00cc..6e6434d 100644
 --- a/examples/xApp/c/monitor/xapp_kpm_moni.c
