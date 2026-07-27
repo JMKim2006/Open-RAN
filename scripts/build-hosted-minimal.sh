@@ -11,6 +11,7 @@ git -C "$root/vendor/flexric" apply --check \
   "$root/integration/patches/flexric-kpm-safe-transition.patch"
 git -C "$root/vendor/flexric" apply \
   "$root/integration/patches/flexric-kpm-safe-transition.patch"
+python3 "$root/tools/replace_flexric_deferred_lock.py" "$root/vendor/flexric"
 if ! find "$build/ocudu" -type f \( -name gnb -o -name ocudu_gnb \) -perm -111 \
   -print -quit | grep -q .; then
   cmake -S "$root/vendor/ocudu" -B "$build/ocudu" -G Ninja \
