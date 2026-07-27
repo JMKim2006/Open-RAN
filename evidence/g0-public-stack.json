@@ -1,0 +1,17 @@
+{
+  "gate": "G0",
+  "status": "preserved-public-stack-grounding",
+  "source_workflow_run_id": 30257846462,
+  "source_workflow_url": "https://github.com/JMKim2006/Open-RAN/actions/runs/30257846462",
+  "ocudu_revision": "9b0cfa600d9d693bf56277e4575dc8c4b8b729bb",
+  "flexric_revision": "f1c08ed2b9b1eceeda7941dd7bf435db0168dd56",
+  "pinned_ocudu": true,
+  "pinned_flexric": true,
+  "actual_sctp_association": true,
+  "e2_setup": true,
+  "kpm_rc_ran_function_registration": true,
+  "nonempty_e2ap_pcap": true,
+  "kpm_subscription": false,
+  "kpm_indication": false,
+  "claim_boundary": "G0 establishes public-stack SCTP, E2 Setup, RAN-function registration, and a nonempty PCAP only. It does not establish KPM subscription or KPM indication."
+}
