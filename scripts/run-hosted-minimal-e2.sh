@@ -7,7 +7,9 @@ exec > >(tee "$out/logs/orchestrator.log") 2>&1
 finalize() {
   local rc=$?
   set +e
-  sudo pkill -TERM -f 'nearRT-RIC|ocudu_gnb|/gnb|xapp_kpm' 2>/dev/null
+  for pid in "${xapp_pid:-}" "${gnb_pid:-}" "${ric_pid:-}" "${tcpdump_pid:-}"; do
+    [[ -n "$pid" ]] && kill -TERM "$pid" 2>/dev/null || true
+  done
   [[ -f /tmp/ocudu-gnb.log ]] && cp /tmp/ocudu-gnb.log "$out/logs/ocudu-file.log"
   {
     echo "workflow_repository=${GITHUB_REPOSITORY:-local}"
@@ -18,10 +20,7 @@ finalize() {
   for d in "$root/vendor/ocudu" "$root/vendor/flexric"; do
     [[ -d "$d/.git" ]] || continue
     printf '%s %s\n' "$(basename "$d")" "$(git -C "$d" rev-parse HEAD)" >> "$out/commits.txt"
-    printf '%s ' "$(basename "$d")" >> "$out/dirty-trees.txt"
-    git -C "$d" status --porcelain=v1 >> "$out/dirty-trees.txt"
   done
-  (cd "$out" && find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
   exit "$rc"
 }
 trap finalize EXIT
@@ -29,7 +28,7 @@ set -e
 "$root/scripts/capability-probe.sh" "$out/capability"
 sudo apt-get update
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
-  build-essential ccache cmake ninja-build git gdb python3 python3-pip libsctp-dev lksctp-tools \
+  build-essential ccache cmake ninja-build git python3 python3-pip libsctp-dev lksctp-tools \
   libzmq3-dev libfftw3-dev libmbedtls-dev libyaml-cpp-dev libpcre2-dev \
   libboost-all-dev libconfig++-dev libgtest-dev tcpdump tshark
 "$root/scripts/fetch-minimal-pinned.sh"
