@@ -57,7 +57,7 @@ jobs:
       - name: Run actual SCTP ORQEST carrier
         id: carrier
         continue-on-error: true
-        run: scripts/run-orqest-sctp-harness.sh evidence/orqest-sctp
+        run: bash scripts/run-orqest-sctp-harness.sh evidence/orqest-sctp
       - if: always()
         uses: actions/upload-artifact@v4
         with:
