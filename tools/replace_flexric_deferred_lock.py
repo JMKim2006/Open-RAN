@@ -65,6 +65,53 @@ replace_once(
     "  e2ap_init_ep_xapp(&xapp->ep, addr, port);\n  free(addr);\n",
 )
 
+
+queue = root / "src/util/alg_ds/ds/tsn_queue/tsn_queue.c"
+replace_once(
+    queue,
+    """ {
+  lock_guard(&q->mtx);
+  pthread_cond_signal(&q->cv);
+ }
+""",
+    """ {
+  const int lock_rc = pthread_mutex_lock(&q->mtx);
+  assert(lock_rc == 0);
+  pthread_cond_signal(&q->cv);
+  const int unlock_rc = pthread_mutex_unlock(&q->mtx);
+  assert(unlock_rc == 0);
+ }
+""",
+)
+replace_once(
+    queue,
+    """  lock_guard(&q->mtx);
+
+  seq_push_back(&q->r, val, sz);
+  pthread_cond_signal(&q->cv);
+""",
+    """  const int lock_rc = pthread_mutex_lock(&q->mtx);
+  assert(lock_rc == 0);
+  seq_push_back(&q->r, val, sz);
+  pthread_cond_signal(&q->cv);
+  const int unlock_rc = pthread_mutex_unlock(&q->mtx);
+  assert(unlock_rc == 0);
+""",
+)
+replace_once(
+    queue,
+    """  lock_guard(&q->mtx);
+  return seq_size(&q->r);
+""",
+    """  const int lock_rc = pthread_mutex_lock(&q->mtx);
+  assert(lock_rc == 0);
+  const size_t size = seq_size(&q->r);
+  const int unlock_rc = pthread_mutex_unlock(&q->mtx);
+  assert(unlock_rc == 0);
+  return size;
+""",
+)
+
 monitor = root / "examples/xApp/c/monitor/xapp_kpm_moni.c"
 replace_once(monitor, "  defer({ free_e2_node_arr_xapp(&nodes); });\n", "")
 replace_once(
