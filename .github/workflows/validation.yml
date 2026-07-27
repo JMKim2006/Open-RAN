@@ -1,9 +1,6 @@
 name: hosted-validation
 
 on:
-  push:
-    branches: [agent/orqest-public-stack-validation]
-  pull_request:
   workflow_dispatch:
 
 permissions:
