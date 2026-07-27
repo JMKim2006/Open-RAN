@@ -50,7 +50,7 @@ jobs:
         id: ccache
         with:
           path: ~/.cache/ccache
-          key: hosted-e2-ccache-${{ runner.os }}-${{ hashFiles('integration/pins.env', 'scripts/build-hosted-minimal.sh') }}
+          key: hosted-e2-ccache-${{ runner.os }}-${{ hashFiles('integration/pins.env', 'integration/patches/flexric-*.patch', 'scripts/build-hosted-minimal.sh') }}
           restore-keys: hosted-e2-ccache-${{ runner.os }}-
       - uses: actions/cache/restore@v4
         id: ocudu-build
@@ -75,7 +75,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ~/.cache/ccache
-          key: hosted-e2-ccache-${{ runner.os }}-${{ hashFiles('integration/pins.env', 'scripts/build-hosted-minimal.sh') }}
+          key: hosted-e2-ccache-${{ runner.os }}-${{ hashFiles('integration/pins.env', 'integration/patches/flexric-*.patch', 'scripts/build-hosted-minimal.sh') }}
       - if: always() && steps.ocudu-build.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
@@ -100,12 +100,13 @@ jobs:
         shell: bash
         run: |
           set -u
-            for file in evidence/evidence.json evidence/gate-a.json \
-              evidence/run-metadata.txt evidence/commits.txt \
-              evidence/xapp-command.txt evidence/xapp-exit-codes.txt \
-              evidence/flexric-build-flags.txt evidence/flexric.conf \
-              evidence/generated-service-model-libraries.txt \
-              evidence/loaded-shared-libraries.txt evidence/xapp-link-command.txt; do
+          for file in evidence/evidence.json evidence/gate-a.json \
+            evidence/run-metadata.txt evidence/commits.txt evidence/pins.env \
+            evidence/patch-sha256.txt evidence/kpm-xapp-gnu-stack.txt \
+            evidence/xapp-command.txt evidence/xapp-exit-codes.txt \
+            evidence/flexric-build-flags.txt evidence/flexric.conf \
+            evidence/generated-service-model-libraries.txt \
+            evidence/loaded-shared-libraries.txt evidence/xapp-link-command.txt; do
             echo "::group::$file"
             if [[ -f "$file" ]]; then
               sed -n '1,200p' "$file"
@@ -150,4 +151,3 @@ jobs:
           if-no-files-found: error
       - if: steps.overlay.outcome != 'success'
         run: exit 1
-
