@@ -20,5 +20,23 @@ int main(){
   auto a=e.schedule({{"q1",1,x,10,1},{"q2",1,y,8,1}},{{"r1",1,y},{"r2",1,x}});
   assert(a.size()==2); // total RBG capacity
   double score=0;for(auto&v:a)score+=v.score;assert(score>1.0); // exact optimum
-  std::cout<<"watermark suffix capacity stale CRC SPD matching: PASS\n";
+  KpmRanFunction functions[]={{1,1,false},{2,3,true}};
+  KpmNodeRegistration node{functions,2};
+  auto kpm=validate_kpm_registration(&node,2,3,&why);
+  assert(kpm&&*kpm==1);
+  assert(!validate_kpm_registration(nullptr,2,3,&why)&&why=="null node registration");
+  KpmNodeRegistration null_array{nullptr,1};
+  assert(!validate_kpm_registration(&null_array,2,3,&why)&&why=="null RAN-function array");
+  KpmNodeRegistration empty{functions,0};
+  assert(!validate_kpm_registration(&empty,2,3,&why)&&why=="empty RAN-function array");
+  assert(!validate_kpm_registration(&node,2,2,&why)&&why=="unsupported KPM revision");
+  int event_style=1,report_style=1;
+  KpmDefinitionView def{&event_style,1,&report_style,1,0,1,true};
+  assert(validate_kpm_subscription_construction(&def,&why));
+  assert(!validate_kpm_subscription_construction(nullptr,&why)&&why=="null KPM definition");
+  def.selected_report_style=1;
+  assert(!validate_kpm_subscription_construction(&def,&why)&&why=="report-style index out of range");
+  def.selected_report_style=0;def.callback_registered=false;
+  assert(!validate_kpm_subscription_construction(&def,&why)&&why=="null action-definition callback");
+  std::cout<<"watermark suffix capacity stale CRC SPD matching KPM transition: PASS\n";
 }
