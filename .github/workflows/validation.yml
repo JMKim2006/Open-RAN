@@ -52,6 +52,13 @@ jobs:
           path: ~/.cache/ccache
           key: hosted-e2-ccache-${{ runner.os }}-${{ hashFiles('integration/pins.env', 'scripts/build-hosted-minimal.sh') }}
           restore-keys: hosted-e2-ccache-${{ runner.os }}-
+      - uses: actions/cache/restore@v4
+        id: ocudu-build
+        with:
+          path: |
+            vendor/ocudu
+            build/upstream/ocudu
+          key: ocudu-build-ubuntu-24.04-9b0cfa600d9d693bf56277e4575dc8c4b8b729bb-release-v1
       - name: Build and run pinned OCUDU/FlexRIC no-RF experiment
         id: experiment
         continue-on-error: true
@@ -69,6 +76,13 @@ jobs:
         with:
           path: ~/.cache/ccache
           key: hosted-e2-ccache-${{ runner.os }}-${{ hashFiles('integration/pins.env', 'scripts/build-hosted-minimal.sh') }}
+      - if: always() && steps.ocudu-build.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            vendor/ocudu
+            build/upstream/ocudu
+          key: ocudu-build-ubuntu-24.04-9b0cfa600d9d693bf56277e4575dc8c4b8b729bb-release-v1
       - if: steps.experiment.outcome != 'success'
         run: exit 1
 
@@ -99,6 +113,7 @@ jobs:
           for file in evidence/logs/orchestrator.log evidence/logs/build.log \
             evidence/logs/ocudu.log evidence/logs/ocudu-file.log \
             evidence/logs/flexric.log evidence/logs/kpm-xapp.log \
+            evidence/logs/kpm-xapp-asan-ubsan.log evidence/logs/kpm-xapp-gdb.log \
             evidence/logs/tcpdump.log; do
             echo "::group::$file (last 120 lines)"
             if [[ -f "$file" ]]; then

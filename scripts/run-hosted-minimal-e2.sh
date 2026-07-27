@@ -34,6 +34,11 @@ sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
   libboost-all-dev libconfig++-dev libgtest-dev tcpdump tshark
 "$root/scripts/fetch-minimal-pinned.sh"
 "$root/scripts/build-hosted-minimal.sh" 2>&1 | tee "$out/logs/build.log"
+cp /usr/local/etc/flexric/flexric.conf "$out/flexric.conf"
+grep -E '^(CMAKE_(C_FLAGS|BUILD_TYPE|EXE_LINKER_FLAGS|SHARED_LINKER_FLAGS)|E2AP_VERSION|KPM_VERSION):' \
+  "$root/build/upstream/flexric/CMakeCache.txt" > "$out/flexric-build-flags.txt"
+find /usr/local/lib/flexric -maxdepth 1 -type f -printf '%f\n' \
+  | sort > "$out/generated-service-model-libraries.txt"
 sudo timeout 180 tcpdump -i lo -s 0 -w "$out/e2ap.pcap" 'sctp port 36421' \
   >"$out/logs/tcpdump.log" 2>&1 &
 tcpdump_pid=$!

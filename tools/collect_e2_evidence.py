@@ -22,27 +22,29 @@ try:
     ).stdout
 except (OSError, subprocess.CalledProcessError):
     pass
+decoded_text = ""
 if re.search(r"\be2ap\.", fields, re.I) and pcap.exists():
     result = subprocess.run(
-        ["tshark", "-r", str(pcap), "-Y", "e2ap"],
+        ["tshark", "-r", str(pcap), "-Y", "e2ap", "-V"],
         capture_output=True, text=True
     )
-    decoded.write_text(result.stdout + result.stderr)
+    decoded_text = result.stdout + result.stderr
+    decoded.write_text(decoded_text)
 evidence = {
     "stock_ocudu": True,
     # E42 setup alone is insufficient. Require the DU-side E2 association and
     # a RIC/xApp view of an E2 node that advertised the KPM RAN function.
     "e2_setup": bool(
-        re.search(r"Registered E2 Nodes = [1-9]", xapp)
-        and re.search(r"ran func id = 2", xapp, re.I)
+        re.search(r"E2.?setupRequest", decoded_text, re.I)
+        and re.search(r"E2.?setupResponse", decoded_text, re.I)
     ),
     # Loading the KPM plugin is neither a subscription nor an indication.
     "kpm_subscription": bool(
-        re.search(r"Registered E2 Nodes = [1-9]", xapp)
-        and re.search(r"Successfully subscribed to RAN_FUNC_ID 2", xapp, re.I)
+        re.search(r"RIC.?subscriptionRequest", decoded_text, re.I)
+        and re.search(r"RIC.?subscriptionResponse", decoded_text, re.I)
     ),
     "kpm_indication": bool(
-        re.search(r"\bKPM ind_msg latency\b", xapp)
+        re.search(r"RIC.?indication", decoded_text, re.I)
     ),
     "nonempty_e2ap_pcap": pcap.exists() and pcap.stat().st_size > 24,
     "tshark_e2ap_supported": bool(re.search(r"\be2ap\.", fields, re.I)),
