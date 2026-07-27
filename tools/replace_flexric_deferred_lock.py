@@ -113,6 +113,16 @@ replace_once(
 )
 
 monitor = root / "examples/xApp/c/monitor/xapp_kpm_moni.c"
+replace_once(
+    monitor,
+    "    lock_guard(&mtx);\n",
+    "    const int lock_rc = pthread_mutex_lock(&mtx);\n    assert(lock_rc == 0);\n",
+)
+replace_once(
+    monitor,
+    "    counter++;\n  }\n}\n",
+    "    counter++;\n    const int unlock_rc = pthread_mutex_unlock(&mtx);\n    assert(unlock_rc == 0);\n  }\n}\n",
+)
 replace_once(monitor, "  defer({ free_e2_node_arr_xapp(&nodes); });\n", "")
 replace_once(
     monitor,
