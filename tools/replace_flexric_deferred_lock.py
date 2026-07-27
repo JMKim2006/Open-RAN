@@ -68,6 +68,28 @@ replace_once(
 
 
 
+
+messages = root / "src/xApp/msg_handler_xapp.c"
+replace_once(messages, "  defer({ e2ap_free_e42_setup_request(&sr);  } );\n", "")
+replace_once(messages, "  defer({free_byte_array(ba); } ); \n", "")
+replace_once(
+    messages,
+    "  e2ap_msg_t ans = {.type = NONE_E2_MSG_TYPE };\n  return ans;\n}\n\ne2ap_msg_t e2ap_handle_e42_ric_subscription_request_xapp",
+    "  free_byte_array(ba);\n  e2ap_free_e42_setup_request(&sr);\n  e2ap_msg_t ans = {.type = NONE_E2_MSG_TYPE };\n  return ans;\n}\n\ne2ap_msg_t e2ap_handle_e42_ric_subscription_request_xapp",
+)
+replace_once(messages, "  defer({ free_byte_array(ba_msg) ;}; );\n", "")
+replace_once(
+    messages,
+    "  e2ap_msg_t ans = {.type = NONE_E2_MSG_TYPE};\n  return ans;\n}\n\n \n\ne2ap_msg_t e2ap_handle_e42_subscription_delete_request_xapp",
+    "  free_byte_array(ba_msg);\n  e2ap_msg_t ans = {.type = NONE_E2_MSG_TYPE};\n  return ans;\n}\n\n \n\ne2ap_msg_t e2ap_handle_e42_subscription_delete_request_xapp",
+)
+replace_once(messages, "  defer({ free_byte_array(ba_msg) ;}; );\n", "")
+replace_once(
+    messages,
+    "  e2ap_msg_t ans = {.type = NONE_E2_MSG_TYPE};\n  return ans; \n}\n\ne2ap_msg_t e2ap_handle_e42_ric_control_request_xapp",
+    "  free_byte_array(ba_msg);\n  e2ap_msg_t ans = {.type = NONE_E2_MSG_TYPE};\n  return ans; \n}\n\ne2ap_msg_t e2ap_handle_e42_ric_control_request_xapp",
+)
+
 pending = root / "src/xApp/pending_event_xapp.c"
 replace_once(
     pending,
