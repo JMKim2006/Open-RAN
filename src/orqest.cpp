@@ -8,6 +8,40 @@
 #include <stdexcept>
 
 namespace orqest {
+std::optional<std::size_t> validate_kpm_registration(
+    const KpmNodeRegistration* node, int function_id, int supported_revision,
+    std::string* reason) {
+  auto fail=[&](const char* value)->std::optional<std::size_t>{
+    if(reason)*reason=value;
+    return std::nullopt;
+  };
+  if(node==nullptr)return fail("null node registration");
+  if(node->functions==nullptr)return fail("null RAN-function array");
+  if(node->length==0)return fail("empty RAN-function array");
+  for(std::size_t i=0;i<node->length;i++) {
+    const auto& function=node->functions[i];
+    if(function.function_id!=function_id)continue;
+    if(!function.is_kpm)return fail("function is not KPM");
+    if(function.revision_id!=supported_revision)return fail("unsupported KPM revision");
+    return i;
+  }
+  return fail("KPM function not found");
+}
+bool validate_kpm_subscription_construction(
+    const KpmDefinitionView* definition, std::string* reason) {
+  auto fail=[&](const char* value){if(reason)*reason=value;return false;};
+  if(definition==nullptr)return fail("null KPM definition");
+  if(definition->event_styles==nullptr||definition->event_style_count==0)
+    return fail("missing event-trigger style");
+  if(definition->report_styles==nullptr||definition->report_style_count==0)
+    return fail("missing report style");
+  if(definition->selected_report_style>=definition->report_style_count)
+    return fail("report-style index out of range");
+  if(definition->selected_report_style>=definition->callback_count)
+    return fail("callback index out of range");
+  if(!definition->callback_registered)return fail("null action-definition callback");
+  return true;
+}
 static void crc_bytes(uint32_t& c,const void* p,size_t n) {
   auto b=static_cast<const unsigned char*>(p);
   for(size_t i=0;i<n;i++){c^=b[i];for(int k=0;k<8;k++)c=(c>>1)^(0xedb88320u&-(int)(c&1));}
