@@ -12,6 +12,8 @@ add_executable(orqest_tests tests/orqest_tests.cpp)
 target_link_libraries(orqest_tests PRIVATE orqest Threads::Threads)
 add_executable(orqest_harness_tests tests/orqest_harness_tests.cpp)
 target_link_libraries(orqest_harness_tests PRIVATE orqest Threads::Threads)
+target_compile_options(orqest_tests PRIVATE -UNDEBUG)
+target_compile_options(orqest_harness_tests PRIVATE -UNDEBUG)
 
 add_executable(orqest-ric apps/orqest_ric.cpp)
 target_link_libraries(orqest-ric PRIVATE orqest Threads::Threads sctp)
