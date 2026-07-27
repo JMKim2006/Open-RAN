@@ -32,6 +32,30 @@ struct Queue {
 struct Rbg { std::string id; unsigned capacity{}; Vec channel{}; };
 struct Assignment { std::string queue; std::string rbg; double score{}; };
 
+struct KpmRanFunction {
+  int function_id{};
+  int revision_id{};
+  bool is_kpm{};
+};
+struct KpmNodeRegistration {
+  const KpmRanFunction* functions{};
+  std::size_t length{};
+};
+struct KpmDefinitionView {
+  const void* event_styles{};
+  std::size_t event_style_count{};
+  const void* report_styles{};
+  std::size_t report_style_count{};
+  std::size_t selected_report_style{};
+  std::size_t callback_count{};
+  bool callback_registered{};
+};
+std::optional<std::size_t> validate_kpm_registration(
+    const KpmNodeRegistration*, int function_id, int supported_revision,
+    std::string* reason=nullptr);
+bool validate_kpm_subscription_construction(
+    const KpmDefinitionView*, std::string* reason=nullptr);
+
 uint32_t crc32(const Snapshot&);
 bool positive_definite(const Mat&);
 Sufficient add(const Sufficient&, const Observation&);
