@@ -1,0 +1,397 @@
+# Upstream-FlexRIC-SHA: f1c08ed2b9b1eceeda7941dd7bf435db0168dd56
+diff --git a/src/util/alg_ds/ds/lock_guard/lock_guard.h b/src/util/alg_ds/ds/lock_guard/lock_guard.h
+--- a/src/util/alg_ds/ds/lock_guard/lock_guard.h
++++ b/src/util/alg_ds/ds/lock_guard/lock_guard.h
+@@ -43,22 +43,40 @@
+ 
+ #define CHECK_TYPE_INLINE(val, type) (void)_Generic((val), type: mir_dummy_lock_guard, const type: mir_dummy_lock_guard_const)
+ 
++typedef struct {
++  pthread_mutex_t* mutex;
++} mir_lock_guard_state_t;
++
++static inline
++mir_lock_guard_state_t mir_lock_guard_acquire(pthread_mutex_t* mutex)
++{
++  assert(mutex != NULL);
++  const int rc = pthread_mutex_lock(mutex);
++  if(rc != 0){
++    fprintf(stdout, "Error while locking: %s\n", strerror(rc));
++    fflush(stdout);
++    assert(rc == 0);
++  }
++  return (mir_lock_guard_state_t){.mutex = mutex};
++}
++
++static inline
++void mir_lock_guard_release(mir_lock_guard_state_t* state)
++{
++  if(state == NULL || state->mutex == NULL)
++    return;
++  const int rc = pthread_mutex_unlock(state->mutex);
++  if(rc != 0){
++    fprintf(stdout, "Error while unlocking: %s\n", strerror(rc));
++    fflush(stdout);
++    assert(rc == 0);
++  }
++}
++
+ #define lock_guard(X) \
++  __attribute__((__cleanup__(mir_lock_guard_release), unused)) \
++  mir_lock_guard_state_t MACRO_CONCAT(mir_lock_guard_, __COUNTER__) = \
++    mir_lock_guard_acquire((X))
+-  do{ CHECK_TYPE_INLINE(X, pthread_mutex_t*);\
+-     int rc = pthread_mutex_lock(X);  \
+-     if (rc != 0){ \
+-        fprintf(stdout, "Error while locking, possibly the lock is already locked: %s\n", strerror(rc)); \
+-        fflush(stdout); \
+-        assert(0 != 0); \
+-     } \
+-  } while(0); \
+-   defer( { int rc = pthread_mutex_unlock(X); \
+-         if(rc != 0){ \
+-          fprintf(stdout, "Error while unlocking: %s\n", strerror(rc) ); \
+-          fflush(stdout); \
+-          assert(0 != 0); \
+-         } \
+-         }); \
+ 
+ //         printf("Defering... \n" ); 
+ 
+diff --git a/src/xApp/e42_xapp.c b/src/xApp/e42_xapp.c
+--- a/src/xApp/e42_xapp.c
++++ b/src/xApp/e42_xapp.c
+@@ -182,11 +182,11 @@
+   uint32_t const port = 36422;
+ 
+   char* addr = get_near_ric_ip(args);
+-  defer({ free(addr); } );
+ 
+   printf("[xApp]: nearRT-RIC IP Address = %s, PORT = %d\n", addr, port);
+ 
+   e2ap_init_ep_xapp(&xapp->ep, addr, port);
++  free(addr);
+ 
+   init_asio_xapp(&xapp->io); 
+ 
+@@ -274,20 +274,19 @@
+     if(e.type == NETWORK_EVENT){ 
+ 
+       byte_array_t ba = e2ap_recv_msg_xapp(&xapp->ep);
+-      defer( {free_byte_array(ba);} );
+ 
+       e2ap_msg_t msg = e2ap_msg_dec_xapp(&xapp->ap, ba);
+-      defer( { e2ap_msg_free_xapp(&xapp->ap, &msg);} );
+ 
+       e2ap_msg_t ans = e2ap_msg_handle_xapp(xapp, &msg);
+-      defer( { e2ap_msg_free_xapp(&xapp->ap, &ans);} );
+ 
+       if(ans.type != NONE_E2_MSG_TYPE){
+         byte_array_t ba_ans = e2ap_msg_enc_xapp(&xapp->ap, &ans); 
+-        defer ({free_byte_array(ba_ans); } );
+-
+         e2ap_send_bytes_xapp(&xapp->ep, ba_ans);
++        free_byte_array(ba_ans);
+       }
++      e2ap_msg_free_xapp(&xapp->ap, &ans);
++      e2ap_msg_free_xapp(&xapp->ap, &msg);
++      free_byte_array(ba);
+     } else if(e.type == PENDING_EVENT){
+       assert(( *e.p_ev == E42_SETUP_REQUEST_PENDING_EVENT 
+             || *e.p_ev == E42_RIC_SUBSCRIPTION_REQUEST_PENDING_EVENT
+@@ -300,13 +299,12 @@
+ 
+       // Resend the subscription request message
+       e42_setup_request_t sr = generate_e42_setup_request(xapp);
+-      defer({ e2ap_free_e42_setup_request(&sr);  } );
+ 
+       printf("[E2AP]: Resending Setup Request after timeout\n");
+       byte_array_t ba = e2ap_enc_e42_setup_request_xapp(&xapp->ap, &sr);
+-      defer({free_byte_array(ba); } );
+-
+       e2ap_send_bytes_xapp(&xapp->ep, ba);
++      free_byte_array(ba);
++      e2ap_free_e42_setup_request(&sr);
+ 
+       consume_fd(fd);
+     } else {
+@@ -384,13 +382,13 @@
+     .id = cp_global_e2_node_id(id),
+     .sr = sr
+   }; 
+-  defer({ e2ap_free_e42_ric_subscription_request(&e42_sr);};);
+ 
+   e2ap_msg_t msg = {.type = E42_RIC_SUBSCRIPTION_REQUEST,
+                     .u_msgs.e42_ric_sub_req = e42_sr 
+   };
+ 
+   xapp->handle_msg[E42_RIC_SUBSCRIPTION_REQUEST](xapp, &msg);
++  e2ap_free_e42_ric_subscription_request(&e42_sr);
+ }
+ 
+ static
+diff --git a/src/xApp/e42_xapp_api.c b/src/xApp/e42_xapp_api.c
+--- a/src/xApp/e42_xapp_api.c
++++ b/src/xApp/e42_xapp_api.c
+@@ -130,14 +130,15 @@
+   assert(n != NULL);
+ 
+   assoc_rb_tree_t t = cp_reg_e2_node(n); 
+-  defer({ assoc_free(&t); }; );
+ 
+   void* it = assoc_front(&t);
+   void* end = assoc_end(&t);
+ 
+   it = find_if(&t, it, end, id, eq_global_e2_node_id_wrapper );
+ 
++  const bool found = it != end;
++  assoc_free(&t);
++  return found;
+-  return it == end ? false : true;
+ }
+ 
+ static inline
+diff --git a/src/xApp/msg_handler_xapp.c b/src/xApp/msg_handler_xapp.c
+--- a/src/xApp/msg_handler_xapp.c
++++ b/src/xApp/msg_handler_xapp.c
+@@ -87,7 +87,7 @@
+ {
+   int* fd = rm_pending_event_ev(&xapp->pending, ev);
+   rm_fd_asio_xapp(&xapp->io, *fd);
++  free(fd);
+-  defer({ free(fd); } );
+ }
+ 
+ void init_handle_msg_xapp(size_t len, e2ap_handle_msg_fp_xapp (*handle_msg)[len])
+@@ -485,13 +485,11 @@
+   assert(msg == NULL && "Not accepting any msg");
+ 
+   e42_setup_request_t sr = generate_e42_setup_request(xapp); 
+-  defer({ e2ap_free_e42_setup_request(&sr);  } );
+ 
+   assert(sr.len_rf > 0);
+   assert(sr.ran_func_item != NULL);
+ 
+   byte_array_t ba = e2ap_enc_e42_setup_request_xapp(&xapp->ap, &sr); 
+-  defer({free_byte_array(ba); } ); 
+ 
+   e2ap_send_bytes_xapp(&xapp->ep, ba);
+ 
+@@ -504,6 +502,8 @@
+                                .id = {0} }; 
+   add_pending_event_xapp(xapp, &x_ev);
+ 
++  free_byte_array(ba);
++  e2ap_free_e42_setup_request(&sr);
+   e2ap_msg_t ans = {.type = NONE_E2_MSG_TYPE };
+   return ans;
+ }
+@@ -517,7 +517,6 @@
+   e42_ric_subscription_request_t const* e42_sr = &msg->u_msgs.e42_ric_sub_req; 
+ 
+   byte_array_t ba_msg = e2ap_enc_e42_subscription_request_xapp(&xapp->ap,(e42_ric_subscription_request_t*)e42_sr);
+-  defer({ free_byte_array(ba_msg) ;}; );
+ 
+   // A pending event is created along with a timer of 5000 ms,
+   // after which an event will be triggered. The answer needs to arrive before 
+@@ -532,6 +531,7 @@
+ 
+   printf("[xApp]: E42 RIC SUBSCRIPTION REQUEST tx RAN_FUNC_ID %d RIC_REQ_ID %d \n",e42_sr->sr.ric_id.ran_func_id, e42_sr->sr.ric_id.ric_req_id );
+ 
++  free_byte_array(ba_msg);
+   e2ap_msg_t ans = {.type = NONE_E2_MSG_TYPE};
+   return ans;
+ }
+@@ -548,7 +548,6 @@
+   printf("[xApp]: E42 RIC_SUBSCRIPTION_DELETE_REQUEST tx RAN_FUNC_ID %d RIC_REQ_ID %d \n", e42_sdr->sdr.ric_id.ran_func_id, e42_sdr->sdr.ric_id.ric_req_id);
+ 
+   byte_array_t ba_msg = e2ap_enc_e42_ric_subscription_delete_xapp(&xapp->ap,( e42_ric_subscription_delete_request_t* ) e42_sdr);
+-  defer({ free_byte_array(ba_msg) ;}; );
+ 
+   e2ap_send_bytes_xapp(&xapp->ep, ba_msg);
+ 
+@@ -560,6 +559,7 @@
+   add_pending_event_xapp(xapp, &ev);
+ 
+ 
++  free_byte_array(ba_msg);
+   e2ap_msg_t ans = {.type = NONE_E2_MSG_TYPE};
+   return ans; 
+ }
+@@ -573,7 +573,6 @@
+   const e42_ric_control_request_t* cr = &msg->u_msgs.e42_ric_ctrl_req;
+ 
+   byte_array_t ba_msg = e2ap_enc_e42_control_request_xapp(&xapp->ap,(  e42_ric_control_request_t* ) cr);
+-  defer({ free_byte_array(ba_msg) ;}; );
+ 
+   e2ap_send_bytes_xapp(&xapp->ep, ba_msg);
+ 
+@@ -585,6 +584,7 @@
+   add_pending_event_xapp(xapp, &ev);
+ 
+ 
++  free_byte_array(ba_msg);
+   e2ap_msg_t ans = {.type = NONE_E2_MSG_TYPE};
+   return ans;
+ }
+diff --git a/src/util/conf_file.c b/src/util/conf_file.c
+--- a/src/util/conf_file.c
++++ b/src/util/conf_file.c
+@@ -75,7 +75,6 @@
+ char* get_near_ric_ip(args_t args)
+ {
+   char* line = NULL;
+-  defer({free(line);});
+   size_t len = 0;
+   ssize_t read;
+ 
+@@ -86,7 +85,6 @@
+     exit(EXIT_FAILURE);
+   }
+   
+-  defer({fclose(fp); } );
+   
+   char ip_addr[24] = {0};
+   while ((read = getline(&line, &len, fp)) != -1) {
+@@ -106,7 +104,10 @@
+     exit(EXIT_FAILURE);
+   }
+   
++  char* result = strdup(ip_addr);
++  free(line);
++  fclose(fp);
++  return result;
+-  return strdup(ip_addr);
+ }
+ 
+ int is_regular_file(const char *path)
+@@ -444,7 +445,6 @@
+ char* get_conf_db_dir(fr_args_t const* args)
+ {
+   char* line = NULL;
+-  defer({free(line);});
+   size_t len = 0;
+   ssize_t read;
+ 
+@@ -455,7 +455,6 @@
+     exit(EXIT_FAILURE);
+   }
+ 
+-  defer({fclose(fp); } );
+ 
+   char db_dir[PATH_MAX] = {0};
+   while ((read = getline(&line, &len, fp)) != -1) {
+@@ -473,13 +472,15 @@
+ 
+   // TODO: valid_path()
+ 
++  char* result = strdup(db_dir);
++  free(line);
++  fclose(fp);
++  return result;
+-  return strdup(db_dir);
+ }
+ 
+ char* get_conf_db_name(fr_args_t const* args)
+ {
+   char* line = NULL;
+-  defer({free(line);});
+   size_t len = 0;
+   ssize_t read;
+ 
+@@ -490,7 +491,6 @@
+     exit(EXIT_FAILURE);
+   }
+ 
+-  defer({fclose(fp); } );
+ 
+   char db_name[24] = {0};
+   while ((read = getline(&line, &len, fp)) != -1) {
+@@ -508,6 +508,9 @@
+ 
+   // TODO: valid_db_name()
+ 
++  char* result = strdup(db_name);
++  free(line);
++  fclose(fp);
++  return result;
+-  return strdup(db_name);
+ }
+ 
+diff --git a/src/lib/msg_hand/reg_e2_nodes.c b/src/lib/msg_hand/reg_e2_nodes.c
+--- a/src/lib/msg_hand/reg_e2_nodes.c
++++ b/src/lib/msg_hand/reg_e2_nodes.c
+@@ -379,7 +379,6 @@
+ e2_node_arr_t generate_e2_node_arr(reg_e2_nodes_t* n)
+ { 
+   assoc_rb_tree_t t = cp_reg_e2_node(n);
+-  defer({ assoc_free(&t); }; );
+ 
+   e2_node_arr_t dst = {0};
+   dst.len = assoc_size(&t);
+@@ -431,13 +430,13 @@
+     it = assoc_next(&t, it);
+   }
+ 
++  assoc_free(&t);
+   return dst;
+ }
+ 
+ e2_node_arr_xapp_t generate_e2_node_arr_xapp(reg_e2_nodes_t* n, plugin_ric_t const* plg_ric)
+ { 
+   assoc_rb_tree_t t = cp_reg_e2_node(n);
+-  defer({ assoc_free(&t); }; );
+ 
+   e2_node_arr_xapp_t dst = {0};
+   dst.len = assoc_size(&t);
+@@ -489,6 +488,7 @@
+     it = assoc_next(&t, it);
+   }
+ 
++  assoc_free(&t);
+   return dst;
+ }
+ 
+diff --git a/src/sm/kpm_sm/kpm_sm_v03.00/kpm_sm_agent.c b/src/sm/kpm_sm/kpm_sm_v03.00/kpm_sm_agent.c
+--- a/src/sm/kpm_sm/kpm_sm_v03.00/kpm_sm_agent.c
++++ b/src/sm/kpm_sm/kpm_sm_v03.00/kpm_sm_agent.c
+@@ -60,7 +60,6 @@
+   sm_kpm_agent_t* sm = (sm_kpm_agent_t*)sm_agent;
+ 
+   kpm_sub_data_t sub_data = {0};
+-  defer({free_kpm_sub_data(&sub_data);}); 
+ 
+   sub_data.ev_trg_def = kpm_dec_event_trigger(&sm->enc, data->len_et, data->event_trigger);
+   assert(sub_data.ev_trg_def.kpm_ric_event_trigger_format_1.report_period_ms > 0);
+@@ -77,6 +76,7 @@
+   sm_ag_if_ans_subs_t ans = {.type = PERIODIC_SUBSCRIPTION_FLRC} ;
+   ans.per.t = timer;
+ 
++  free_kpm_sub_data(&sub_data);
+   return ans;
+ }
+ 
+@@ -96,12 +96,13 @@
+  // sm_ag_if_rd_ind_t ind = {.type = KPM_STATS_V3_0};
+   kpm_rd_ind_data_t kpm = {0}; 
+ // Free memory allocated by the RAN at read_ind. Sucks
+-  defer({ free_kpm_ind_data(&kpm.ind); });
+ 
+   kpm.act_def = act_def;
+   bool const success = sm->base.io.read_ind(&kpm); 
++  if(success == false){
++    free_kpm_ind_data(&kpm.ind);
+-  if(success == false)
+     return (exp_ind_data_t){.has_value = false};
++  }
+   
+   byte_array_t ba_hdr = kpm_enc_ind_hdr(&sm->enc, &kpm.ind.hdr);
+   ret.data.ind_hdr = ba_hdr.buf;
+@@ -115,6 +116,7 @@
+   ret.data.call_process_id = NULL;
+   ret.data.len_cpid = 0;
+ 
++  free_kpm_ind_data(&kpm.ind);
+   return ret;
+ }
+ 
