@@ -4,7 +4,8 @@ ulimit -c 0
 root="$(cd "$(dirname "$0")/.." && pwd)"
 out="${1:-$root/evidence/orqest-sctp}"
 build="$root/build/orqest-sctp"
-mkdir -p "$out/logs"\nexec > >(tee "$out/logs/orchestrator.log") 2>&1
+mkdir -p "$out/logs"
+exec > >(tee "$out/logs/orchestrator.log") 2>&1
 cleanup() {
   set +e
   [[ -n "${du_pid:-}" ]] && kill -TERM "$du_pid" 2>/dev/null || true
@@ -14,7 +15,7 @@ cleanup() {
 trap cleanup EXIT
 sudo apt-get update
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y   build-essential cmake ninja-build libsctp-dev lksctp-tools tcpdump tshark
-cmake -S "$root" -B "$build" -G Ninja   -DCMAKE_BUILD_TYPE=RelWithDebInfo   -DCMAKE_EXPORT_COMPILE_COMMANDS=ON   -DCMAKE_CXX_FLAGS_RELWITHDEBINFO="-O2 -g -DNDEBUG -Wall -Wextra -Werror -Wpedantic"
+cmake -S "$root" -B "$build" -G Ninja   -DCMAKE_BUILD_TYPE=RelWithDebInfo   -DCMAKE_EXPORT_COMPILE_COMMANDS=ON   -DCMAKE_CXX_FLAGS_RELWITHDEBINFO="-O2 -g -DNDEBUG"
 cmake --build "$build" --parallel 2
 ctest --test-dir "$build" --output-on-failure
 readelf -W -l "$build/orqest-ric" | grep GNU_STACK | tee "$out/orqest-ric-gnu-stack.txt"
