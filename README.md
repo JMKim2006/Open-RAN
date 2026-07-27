@@ -1,11 +1,40 @@
 # ORQEST public-stack validation
 
-Deployment and public-stack validation repository for the ORQEST JSAC research
-project. It contains one unified O-DU ORQEST engine; queue-sensitive per-TTI
-decisions remain inside the O-DU.
+This repository contains one unified C++17 ORQEST implementation. It validates
+the ORQEST identity as a standards-facing, multi-process wire contract over an
+actual SCTP association. It does not split the system into ORQEST-T and
+ORQEST-P variants.
 
-ORQEST KPM/RC fields are **experimental extensions**. They are not standardized
-O-RAN measurements or actions.
+ORQEST fields are **experimental extensions**. They are not standardized O-RAN
+measurements or actions.
+
+## Executables
+
+- `orqest-ric`: accepts compatibility-qualified cumulative DU reports,
+  requires source-complete provenance, and produces versioned snapshots.
+- `orqest-du`: owns local observations and queue state, installs snapshots
+  atomically, replays the exact post-cutoff suffix, acknowledges ActiveVersion,
+  and performs queue-sensitive per-TTI matching locally.
+
+The RIC never receives queue state and never selects per-TTI RBG assignments.
+
+## Canonical binary contract
+
+All integers and IEEE-754 binary64 bit patterns use network byte order. Strings
+are UTF-8 with a network-order uint16 length. Each message starts with a
+four-byte magic and uint16 contract version and ends with CRC32 over every
+preceding byte.
+
+DU report (`ORQD`):
+
+`source ID, compatibility digest, exclusive cutoff, cumulative count,
+21 upper-triangular d=6 design entries, 6 response entries,
+active snapshot version, CRC32`.
+
+RIC snapshot (`ORQS`):
+
+`snapshot version, compatibility digest, sorted source-specific exclusive
+cutoffs, 21 aggregate design entries, 6 aggregate response entries, CRC32`.
 
 ## Portable validation
 
@@ -18,52 +47,41 @@ python3 tools/validate_contract.py
 python3 -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
-The C++17 engine maintains a compatibility-qualified sufficient-statistic prefix
-and source-exclusive cutoffs. Snapshot installation validates version, digest,
-cutoff, CRC32 and positive-definiteness before atomically replacing immutable
-state. Observations at or after the exclusive cutoff are replayed exactly once.
+The deterministic C++ tests cover loss, duplication, reordering, delayed and
+stale snapshots, regressive cutoffs, incompatible digests, invalid CRC,
+malformed frames, concurrent local observations, suffix replay, history
+completeness, no double counting, and matching capacities.
 
-For context `x`, the scheduler uses Cholesky solves (never an explicit inverse):
+## GitHub-hosted SCTP run
 
-```text
-theta  = solve(V, b)
-mu     = clip(x^T theta + alpha sqrt(x^T solve(V, x)), 0, 1)
-weight = Q * mu - V_control * C
-```
-
-It then solves exact capacity-constrained queue–RBG bipartite b-matching.
-
-## GitHub-hosted no-RF experiment
-
-The `hosted-validation` workflow runs exclusively on standard
-`ubuntu-24.04`. Its dependency chain is:
-
-```text
-capability probe -> portable tests -> minimal OCUDU/FlexRIC Gate A -> overlay Gate B
-```
-
-The capability probe records Docker, passwordless sudo, CPU, RAM, disk, the SCTP
-kernel protocol, and an actual SCTP socket creation. The minimal experiment
-fetches the official `https://gitlab.com/ocudu/ocudu.git` at the immutable SHA in
-`integration/pins.env`, builds only OCUDU gNB and FlexRIC, starts
-`ru_dummy`/`test_mode`/`no_core`, captures loopback SCTP port 36421, and requires
-real E2 Setup, KPM subscription, and KPM indication evidence.
+The actual carrier experiment runs only on a standard GitHub-hosted
+`ubuntu-24.04` runner:
 
 ```bash
 scripts/capability-probe.sh evidence/capability
-scripts/run-hosted-minimal-e2.sh evidence/hosted-minimal-e2
-scripts/run-hosted-overlay.sh evidence/hosted-overlay
+scripts/run-orqest-sctp-harness.sh evidence/orqest-sctp
+python3 tools/evidence_gate.py --gate G1 --evidence evidence/orqest-sctp/evidence.json
+python3 tools/evidence_gate.py --gate G2 --evidence evidence/orqest-sctp/evidence.json
 ```
 
-Every experiment uploads logs, PCAP where produced, exact revisions, dirty-tree
-state, run metadata, and SHA-256 manifests even when it fails. A missing runner
-capability or upstream incompatibility is a recorded failure, never inferred
-success.
+It uploads the SCTP PCAP, RIC/DU logs, parsed timeline, commit SHA, dirty-tree
+status, compiler configuration, binary and artifact SHA-256 checksums, GNU_STACK
+inspection, and final evidence JSON. Executable stacks are rejected.
 
-Open5GS and OAI UE are pinned for a later full-stack stage but are deliberately
-not fetched or built before hosted Gate A succeeds. Gate B is dependency-blocked
-until Gate A passes and the bounded KPM/RC overlay is applied to the verified
-OCUDU tree. A stock OCUDU run can never pass Gate B.
+## Independent gates
 
-See `docs/ACCEPTANCE.md` for claim boundaries and `docs/EXECUTION-LOG.md` for
-commands and observed results.
+- **G0 — public-stack grounding:** preserved pinned OCUDU/FlexRIC evidence,
+  real SCTP, E2 Setup, KPM/RC RAN-function registration, and nonempty E2AP PCAP.
+  G0 does not claim KPM subscription or indication.
+- **G1 — ORQEST wire integrity:** canonical messages, CRC/malformed rejection,
+  compatibility filtering, source completeness, and cutoff provenance over
+  actual SCTP.
+- **G2 — ORQEST closed loop:** G1 plus report → aggregate → snapshot → atomic
+  install → ActiveVersion acknowledgement → exact suffix replay → local
+  queue-sensitive matching.
+- **G3 — optional stock interoperability:** real stock KPM subscription and
+  indication. G1 and G2 do not depend on G3.
+
+The retired generic FlexRIC KPM xApp repair path is not part of G1 or G2.
+FlexRIC, SQLite, and the E42 event framework are not modified by the carrier
+workflow. See `docs/ACCEPTANCE.md` for precise claim boundaries.
