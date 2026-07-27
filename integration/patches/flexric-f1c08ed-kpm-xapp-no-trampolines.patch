@@ -265,59 +265,158 @@ diff --git a/src/util/conf_file.c b/src/util/conf_file.c
  }
  
  int is_regular_file(const char *path)
-@@ -444,7 +445,6 @@
- char* get_conf_db_dir(fr_args_t const* args)
- {
-   char* line = NULL;
+@@ -440,${oldSeg.length} +440,${newSeg.length} @@
+-  fclose(fp); 
+-  return strdup(ip_addr);
+-}
+-
+-char* get_conf_db_dir(fr_args_t const* args)
+-{
+-  char* line = NULL;
 -  defer({free(line);});
-   size_t len = 0;
-   ssize_t read;
- 
-@@ -455,7 +455,6 @@
-     exit(EXIT_FAILURE);
-   }
- 
+-  size_t len = 0;
+-  ssize_t read;
+-
+-  FILE * fp = fopen(args->conf_file, "r");
+-
+-  if (fp == NULL){
+-    printf("%s not found. Did you forget to sudo make install?\n", args->conf_file);
+-    exit(EXIT_FAILURE);
+-  }
+-
 -  defer({fclose(fp); } );
- 
-   char db_dir[PATH_MAX] = {0};
-   while ((read = getline(&line, &len, fp)) != -1) {
-@@ -473,13 +472,15 @@
- 
-   // TODO: valid_path()
- 
+-
+-  char db_dir[PATH_MAX] = {0};
+-  while ((read = getline(&line, &len, fp)) != -1) {
+-    const char* needle = "DB_DIR =";
+-    char* ans = strstr(line, needle);
+-    if(ans != NULL){
+-      ans += strlen(needle);
+-      ans = ltrim(ans);
+-      ans = rtrim(ans);
+-      assert(strlen(ans) <= sizeof(db_dir));
+-      memcpy(db_dir, ans , strlen(ans)); // \n character
+-      break;
+-    }
+-  }
+-
+-  // TODO: valid_path()
+-
+-  return strdup(db_dir);
+-}
+-
+-char* get_conf_db_name(fr_args_t const* args)
+-{
+-  char* line = NULL;
+-  defer({free(line);});
+-  size_t len = 0;
+-  ssize_t read;
+-
+-  FILE * fp = fopen(args->conf_file, "r");
+-
+-  if (fp == NULL){
+-    printf("%s not found. Did you forget to sudo make install?\n", args->conf_file);
+-    exit(EXIT_FAILURE);
+-  }
+-
+-  defer({fclose(fp); } );
+-
+-  char db_name[24] = {0};
+-  while ((read = getline(&line, &len, fp)) != -1) {
+-    const char* needle = "DB_NAME =";
+-    char* ans = strstr(line, needle);
+-    if(ans != NULL){
+-      ans += strlen(needle);
+-      ans = ltrim(ans);
+-      ans = rtrim(ans);
+-      assert(strlen(ans) <= sizeof(db_name));
+-      memcpy(db_name, ans , strlen(ans)); // \n character
+-      break;
+-    }
+-  }
+-
+-  // TODO: valid_db_name()
+-
+-  return strdup(db_name);
+-}
+-
++  free(line);
++  fclose(fp); 
++  return strdup(ip_addr);
++}
++
++char* get_conf_db_dir(fr_args_t const* args)
++{
++  char* line = NULL;
++  size_t len = 0;
++  ssize_t read;
++
++  FILE * fp = fopen(args->conf_file, "r");
++
++  if (fp == NULL){
++    printf("%s not found. Did you forget to sudo make install?\n", args->conf_file);
++    exit(EXIT_FAILURE);
++  }
++
++
++  char db_dir[PATH_MAX] = {0};
++  while ((read = getline(&line, &len, fp)) != -1) {
++    const char* needle = "DB_DIR =";
++    char* ans = strstr(line, needle);
++    if(ans != NULL){
++      ans += strlen(needle);
++      ans = ltrim(ans);
++      ans = rtrim(ans);
++      assert(strlen(ans) <= sizeof(db_dir));
++      memcpy(db_dir, ans , strlen(ans)); // \n character
++      break;
++    }
++  }
++
++  // TODO: valid_path()
++
 +  char* result = strdup(db_dir);
 +  free(line);
 +  fclose(fp);
 +  return result;
--  return strdup(db_dir);
- }
- 
- char* get_conf_db_name(fr_args_t const* args)
- {
-   char* line = NULL;
--  defer({free(line);});
-   size_t len = 0;
-   ssize_t read;
- 
-@@ -490,7 +491,6 @@
-     exit(EXIT_FAILURE);
-   }
- 
--  defer({fclose(fp); } );
- 
-   char db_name[24] = {0};
-   while ((read = getline(&line, &len, fp)) != -1) {
-@@ -508,6 +508,9 @@
- 
-   // TODO: valid_db_name()
- 
++}
++
++char* get_conf_db_name(fr_args_t const* args)
++{
++  char* line = NULL;
++  size_t len = 0;
++  ssize_t read;
++
++  FILE * fp = fopen(args->conf_file, "r");
++
++  if (fp == NULL){
++    printf("%s not found. Did you forget to sudo make install?\n", args->conf_file);
++    exit(EXIT_FAILURE);
++  }
++
++
++  char db_name[24] = {0};
++  while ((read = getline(&line, &len, fp)) != -1) {
++    const char* needle = "DB_NAME =";
++    char* ans = strstr(line, needle);
++    if(ans != NULL){
++      ans += strlen(needle);
++      ans = ltrim(ans);
++      ans = rtrim(ans);
++      assert(strlen(ans) <= sizeof(db_name));
++      memcpy(db_name, ans , strlen(ans)); // \n character
++      break;
++    }
++  }
++
++  // TODO: valid_db_name()
++
 +  char* result = strdup(db_name);
 +  free(line);
 +  fclose(fp);
 +  return result;
--  return strdup(db_name);
- }
- 
++}
++
 diff --git a/src/lib/msg_hand/reg_e2_nodes.c b/src/lib/msg_hand/reg_e2_nodes.c
 --- a/src/lib/msg_hand/reg_e2_nodes.c
 +++ b/src/lib/msg_hand/reg_e2_nodes.c
