@@ -109,7 +109,7 @@ void Engine::observe(const Observation& o){std::lock_guard<std::mutex> g(mu_);
 }
 Sufficient Engine::current() const {std::lock_guard<std::mutex> g(mu_);auto r=active_->aggregate;
   auto q=active_->cutoff.count(source_)?active_->cutoff.at(source_):0;
-  for(auto&o:local_)if(o.sequence>=q)r=add(r,o); return r;
+  for(const auto& o:local_) {\n    if(o.sequence>=q)r=add(r,o);\n  }\n  return r;
 }
 uint64_t Engine::active_version()const{std::lock_guard<std::mutex>g(mu_);return active_->version;}
 bool Engine::install(const Snapshot& s,std::string* why){
