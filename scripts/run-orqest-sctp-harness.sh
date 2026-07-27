@@ -29,7 +29,7 @@ git -C "$root" status --porcelain=v1 > "$out/dirty-tree.txt"
 cp "$build/CMakeCache.txt" "$out/CMakeCache.txt"
 cp "$build/compile_commands.json" "$out/compile_commands.json"
 sha256sum "$build/orqest-ric" "$build/orqest-du" > "$out/binary-sha256.txt"
-sudo timeout 45 tcpdump -i lo -s 0 -w "$out/orqest-sctp.pcap" 'sctp port 39001'   >"$out/logs/tcpdump.log" 2>&1 &
+sudo timeout 45 tcpdump -U -i lo -s 0 -w "$out/orqest-sctp.pcap" 'sctp port 39001'   >"$out/logs/tcpdump.log" 2>&1 &
 tcpdump_pid=$!
 sleep 2
 timeout 30 "$build/orqest-ric" --port 39001 --timeline "$out/ric-timeline.jsonl"   >"$out/logs/orqest-ric.log" 2>&1 &
@@ -39,6 +39,7 @@ timeout 30 "$build/orqest-du" --port 39001 --timeline "$out/du-timeline.jsonl"  
 du_pid=$!
 wait "$du_pid"
 wait "$ric_pid"
+sleep 3
 sudo kill -INT "$tcpdump_pid" 2>/dev/null || true
 wait "$tcpdump_pid" 2>/dev/null || true
 unset tcpdump_pid
