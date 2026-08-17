@@ -91,10 +91,110 @@ static Vec cholesky_solve(const double l[D][D], const Vec& rhs) {
   }
   return x;
 }
+static double minimum_eigenvalue(const Mat&a) {
+  double m[D][D]{};
+  for(size_t i=0;i<D;i++)for(size_t j=0;j<D;j++) {
+    if(!std::isfinite(a[i*D+j])||std::abs(a[i*D+j]-a[j*D+i])>1e-10)
+      throw std::invalid_argument("non-symmetric coverage matrix");
+    m[i][j]=a[i*D+j];
+  }
+  // Symmetric Jacobi iterations are deterministic for fixed d=6 and avoid a
+  // heavy linear-algebra dependency in the O-DU carrier.
+  for(size_t iteration=0;iteration<100*D*D;iteration++) {
+    size_t p=0,q=1;double largest=0;
+    for(size_t i=0;i<D;i++)for(size_t j=i+1;j<D;j++)
+      if(std::abs(m[i][j])>largest){largest=std::abs(m[i][j]);p=i;q=j;}
+    if(largest<1e-12)break;
+    const double angle=0.5*std::atan2(2*m[p][q],m[q][q]-m[p][p]);
+    const double c=std::cos(angle),s=std::sin(angle);
+    const double app=m[p][p],aqq=m[q][q],apq=m[p][q];
+    m[p][p]=c*c*app-2*s*c*apq+s*s*aqq;
+    m[q][q]=s*s*app+2*s*c*apq+c*c*aqq;
+    m[p][q]=m[q][p]=0;
+    for(size_t k=0;k<D;k++)if(k!=p&&k!=q) {
+      const double mkp=m[k][p],mkq=m[k][q];
+      m[k][p]=m[p][k]=c*mkp-s*mkq;
+      m[k][q]=m[q][k]=s*mkp+c*mkq;
+    }
+  }
+  double value=m[0][0];
+  for(size_t i=1;i<D;i++)value=std::min(value,m[i][i]);
+  return value;
+}
 Sufficient add(const Sufficient& s,const Observation& o) {
   Sufficient r=s; for(size_t i=0;i<D;i++){r.b[i]+=o.x[i]*o.reward;
     for(size_t j=0;j<D;j++)r.a[i*D+j]+=o.x[i]*o.x[j];}
   ++r.count; return r;
+}
+ResidualMomentAdmission::ResidualMomentAdmission(
+    const Sufficient& source_model,uint64_t shadow_samples,
+    double score_threshold,double covariance_ridge)
+ :shadow_samples_(shadow_samples),score_threshold_(score_threshold),
+  covariance_ridge_(covariance_ridge) {
+  if(shadow_samples_<2||!std::isfinite(score_threshold_)||score_threshold_<0||
+     !std::isfinite(covariance_ridge_)||covariance_ridge_<=0)
+    throw std::invalid_argument("admission calibration");
+  double l[D][D]{};
+  if(!cholesky(source_model.a,l))
+    throw std::invalid_argument("non-positive-definite source model");
+  source_theta_=cholesky_solve(l,source_model.b);
+}
+AdmissionDecision ResidualMomentAdmission::observe(const Observation&o) {
+  if(decision_.state!=AdmissionState::shadow)return decision_;
+  if(!std::isfinite(o.reward)||
+     !std::all_of(o.x.begin(),o.x.end(),[](double x){return std::isfinite(x);}))
+    throw std::invalid_argument("non-finite admission sample");
+  const double prediction=std::inner_product(
+      o.x.begin(),o.x.end(),source_theta_.begin(),0.0);
+  Vec moment{};
+  for(size_t i=0;i<D;i++)moment[i]=o.x[i]*(o.reward-prediction);
+  for(size_t i=0;i<D;i++) {
+    moment_sum_[i]+=moment[i];
+    for(size_t j=0;j<D;j++)
+      moment_outer_sum_[i*D+j]+=moment[i]*moment[j];
+  }
+  ++samples_;
+  decision_.samples=samples_;
+  if(samples_<shadow_samples_)return decision_;
+
+  Vec mean{};
+  for(size_t i=0;i<D;i++)mean[i]=moment_sum_[i]/double(samples_);
+  Mat covariance{};
+  for(size_t i=0;i<D;i++)for(size_t j=0;j<D;j++)
+    covariance[i*D+j]=moment_outer_sum_[i*D+j]/double(samples_)-mean[i]*mean[j];
+  for(size_t i=0;i<D;i++)covariance[i*D+i]+=covariance_ridge_;
+  double l[D][D]{};
+  if(!cholesky(covariance,l))
+    throw std::runtime_error("non-positive-definite admission covariance");
+  const Vec normalized=cholesky_solve(l,mean);
+  decision_.score=double(samples_)*std::inner_product(
+      mean.begin(),mean.end(),normalized.begin(),0.0);
+  decision_.state=decision_.score<=score_threshold_
+      ?AdmissionState::admitted:AdmissionState::quarantined;
+  return decision_;
+}
+AdmissionDecision ResidualMomentAdmission::decision()const{return decision_;}
+InstalledCoverageGuard::InstalledCoverageGuard(
+    double ridge_floor,double growth_rate,uint64_t monitoring_start)
+ :ridge_floor_(ridge_floor),growth_rate_(growth_rate),
+  monitoring_start_(monitoring_start) {
+  if(!std::isfinite(ridge_floor_)||ridge_floor_<=0||
+     !std::isfinite(growth_rate_)||growth_rate_<=0)
+    throw std::invalid_argument("coverage calibration");
+}
+CoverageDecision InstalledCoverageGuard::check(
+    uint64_t epoch,const Sufficient&installed)const {
+  CoverageDecision out;out.epoch=epoch;
+  out.minimum_eigenvalue=minimum_eigenvalue(installed.a);
+  out.monitoring_active=epoch>=monitoring_start_;
+  out.required_floor=out.monitoring_active
+      ?ridge_floor_+growth_rate_*double(epoch-monitoring_start_+1)
+      :ridge_floor_;
+  // A small scale-aware tolerance prevents a roundoff-only transition.
+  const double tolerance=1e-10*std::max(1.0,std::abs(out.required_floor));
+  out.covered=!out.monitoring_active||
+      out.minimum_eigenvalue+tolerance>=out.required_floor;
+  return out;
 }
 Engine::Engine(std::string source,std::string digest,double exploration,double control_penalty)
  :source_(std::move(source)),digest_(std::move(digest)),exploration_(exploration),
@@ -127,8 +227,9 @@ bool Engine::install(const Snapshot& s,std::string* why){
   local_.erase(std::remove_if(local_.begin(),local_.end(),[&](auto&o){return o.sequence<q;}),local_.end());
   active_=std::make_shared<Snapshot>(s); return true;
 }
-std::vector<Assignment> Engine::schedule(const std::vector<Queue>&qs,const std::vector<Rbg>&rs)const{
-  Sufficient model=current();
+static std::vector<Assignment> schedule_model(
+    const Sufficient&model,double exploration,double control_penalty,
+    const std::vector<Queue>&qs,const std::vector<Rbg>&rs) {
   double l[D][D]{};
   if(!cholesky(model.a,l))throw std::runtime_error("non-positive-definite active design matrix");
   const Vec theta=cholesky_solve(l,model.b);
@@ -144,11 +245,31 @@ std::vector<Assignment> Engine::schedule(const std::vector<Queue>&qs,const std::
       const double mean=std::inner_product(x.begin(),x.end(),theta.begin(),0.0);
       const double radius=std::sqrt(std::max(0.0,
         std::inner_product(x.begin(),x.end(),vinvx.begin(),0.0)));
-      const double mu=std::clamp(mean+exploration_*radius,0.0,1.0);
+      const double mu=std::clamp(mean+exploration*radius,0.0,1.0);
       const double backlog=qs[q].backlog>0?qs[q].backlog:static_cast<double>(qs[q].demand);
-      const double w=backlog*mu-control_penalty_*qs[q].cost;
+      const double w=backlog*mu-control_penalty*qs[q].cost;
       ++used[q];cur.push_back({qs[q].id,rs[r].id,w});dfs(n+1,total+w);cur.pop_back();--used[q];
     }
   };dfs(0,0);return best;
+}
+std::vector<Assignment> Engine::schedule(
+    const std::vector<Queue>&qs,const std::vector<Rbg>&rs)const {
+  return schedule_model(current(),exploration_,control_penalty_,qs,rs);
+}
+CoverageDecision Engine::coverage(
+    const InstalledCoverageGuard&guard,uint64_t epoch)const {
+  return guard.check(epoch,current());
+}
+std::vector<Assignment> Engine::schedule_guarded(
+    const std::vector<Queue>&qs,const std::vector<Rbg>&rs,
+    const InstalledCoverageGuard&guard,uint64_t epoch,
+    double conservative_exploration)const {
+  if(!std::isfinite(conservative_exploration)||conservative_exploration<0)
+    throw std::invalid_argument("conservative exploration");
+  const Sufficient model=current();
+  const auto state=guard.check(epoch,model);
+  const double exploration=state.covered?exploration_:
+      std::max(exploration_,conservative_exploration);
+  return schedule_model(model,exploration,control_penalty_,qs,rs);
 }
 }

@@ -59,3 +59,24 @@ independent of G1/G2.
 No workflow fabricates SCTP, E2AP, KPM, OCUDU, PCAP, RF, or interoperability
 evidence. Missing capabilities or observations fail the corresponding gate.
 Executable stacks are never enabled.
+
+## Statistical admission boundary
+
+The compatibility digest is the primary semantic gate. A source that passes it
+may still remain local-only for a predeclared shadow window. ORQEST computes the
+covariance-normalized residual-moment score against the frozen source model and
+uses a threshold calibrated on disjoint compatible environments. Before the
+window is complete, the source is not poolable. At the fixed endpoint the first
+admitted/quarantined result is frozen, preventing optional stopping or repeated
+threshold tests. Passing this check mitigates detectable service-law mismatch;
+it does not prove that two vendors implement identical semantics.
+
+## Runtime coverage boundary
+
+The fixed operational confidence bonus is used only while the installed-state
+minimum eigenvalue satisfies the configured linear growth floor after burn-in.
+The monitor evaluates the state actually used for the decision, so delayed RIC
+snapshots and exact local suffix replay are included. On failure, guarded
+scheduling substitutes a configured conservative bonus. A theorem-aligned
+deployment must supply the current base-rule radius corresponding to
+$\eta=1$; merely choosing another arbitrary constant is not a guarantee.

@@ -15,6 +15,53 @@ using Vec = std::array<double,D>;
 using Mat = std::array<double,D*D>;
 struct Sufficient { Mat a{}; Vec b{}; uint64_t count{}; };
 struct Observation { uint64_t sequence{}; Vec x{}; double reward{}; };
+enum class AdmissionState { shadow, admitted, quarantined };
+struct AdmissionDecision {
+  AdmissionState state{AdmissionState::shadow};
+  uint64_t samples{};
+  double score{};
+};
+
+// Statistical safeguard applied only after the hard semantic compatibility
+// key matches.  A fixed source model is checked on a predeclared target shadow
+// window using the covariance-normalized residual-moment statistic in the
+// manuscript.  The first terminal decision is frozen to avoid optional
+// stopping and repeated-threshold testing.
+class ResidualMomentAdmission {
+ public:
+  ResidualMomentAdmission(const Sufficient& source_model,
+                          uint64_t shadow_samples,
+                          double score_threshold,
+                          double covariance_ridge=1e-8);
+  AdmissionDecision observe(const Observation& target_sample);
+  AdmissionDecision decision() const;
+ private:
+  Vec source_theta_{};
+  uint64_t shadow_samples_{};
+  double score_threshold_{};
+  double covariance_ridge_{};
+  uint64_t samples_{};
+  Vec moment_sum_{};
+  Mat moment_outer_sum_{};
+  AdmissionDecision decision_{};
+};
+struct CoverageDecision {
+  bool monitoring_active{};
+  bool covered{true};
+  uint64_t epoch{};
+  double minimum_eigenvalue{};
+  double required_floor{};
+};
+class InstalledCoverageGuard {
+ public:
+  InstalledCoverageGuard(double ridge_floor, double growth_rate,
+                         uint64_t monitoring_start);
+  CoverageDecision check(uint64_t epoch, const Sufficient& installed) const;
+ private:
+  double ridge_floor_{};
+  double growth_rate_{};
+  uint64_t monitoring_start_{};
+};
 struct Snapshot {
   uint64_t version{};
   std::string digest;
@@ -70,6 +117,11 @@ class Engine {
   bool install(const Snapshot&, std::string* reason=nullptr);
   std::vector<Assignment> schedule(const std::vector<Queue>&,
                                    const std::vector<Rbg>&) const;
+  CoverageDecision coverage(const InstalledCoverageGuard&,uint64_t epoch) const;
+  std::vector<Assignment> schedule_guarded(
+      const std::vector<Queue>&,const std::vector<Rbg>&,
+      const InstalledCoverageGuard&,uint64_t epoch,
+      double conservative_exploration) const;
  private:
   std::string source_, digest_;
   double exploration_;

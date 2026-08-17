@@ -17,7 +17,10 @@ else
   echo "Reusing cached pinned OCUDU gNB build without rebuilding"
 fi
 base_flags="-g -O1 -fno-omit-frame-pointer -fno-optimize-sibling-calls -D_GLIBCXX_ASSERTIONS -fsanitize=address,undefined"
-strict_flags="-Wall -Wextra -Werror -Wtrampolines -Werror=trampolines $base_flags"
+# Fail the xApp build specifically on GCC nested-function trampolines.  Do not
+# promote unrelated warnings in unexercised upstream service-model/database
+# code to errors; those warnings are not evidence of an executable stack.
+strict_flags="-Wall -Wextra -Wtrampolines -Werror=trampolines $base_flags"
 cmake -S "$root/vendor/flexric" -B "$build/flexric" -G Ninja   -DCMAKE_BUILD_TYPE=Debug -DXAPP_DB=SQLITE3_XAPP -DUNIT_TEST=FALSE   -DE2AP_VERSION=E2AP_V3 -DKPM_VERSION=KPM_V3_00   -DCMAKE_C_FLAGS_DEBUG="$base_flags" -DCMAKE_CXX_FLAGS_DEBUG="$base_flags"   -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"   -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=address,undefined"   -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 cmake --build "$build/flexric" --target nearRT-RIC --parallel 4
 cmake -S "$root/vendor/flexric" -B "$build/flexric" -G Ninja   -DCMAKE_BUILD_TYPE=Debug -DXAPP_DB=SQLITE3_XAPP -DUNIT_TEST=FALSE   -DE2AP_VERSION=E2AP_V3 -DKPM_VERSION=KPM_V3_00   -DCMAKE_C_FLAGS_DEBUG="$strict_flags" -DCMAKE_CXX_FLAGS_DEBUG="$strict_flags"   -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"   -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=address,undefined"   -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache

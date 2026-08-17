@@ -4,7 +4,8 @@
 using namespace orqest;
 static Snapshot snap(uint64_t v,uint64_t q){
   Snapshot s;s.version=v;s.digest="compat-v1";s.cutoff["du-a"]=q;
-  for(size_t i=0;i<D;i++)s.aggregate.a[i*D+i]=2;s.aggregate.count=q;s.crc=crc32(s);return s;
+  for(size_t i=0;i<D;i++)s.aggregate.a[i*D+i]=2;
+  s.aggregate.count=q;s.crc=crc32(s);return s;
 }
 int main(){
   Engine e("du-a","compat-v1",0.25,0.1); Vec x{1,0,0,0,0,0};
@@ -38,5 +39,45 @@ int main(){
   assert(!validate_kpm_subscription_construction(&def,&why)&&why=="report-style index out of range");
   def.selected_report_style=0;def.callback_registered=false;
   assert(!validate_kpm_subscription_construction(&def,&why)&&why=="null action-definition callback");
-  std::cout<<"watermark suffix capacity stale CRC SPD matching KPM transition: PASS\n";
+
+  Sufficient source;
+  for(size_t i=0;i<D;i++)source.a[i*D+i]=1.0;
+  ResidualMomentAdmission compatible(source,6,10.0);
+  for(uint64_t i=0;i<5;i++) {
+    Vec z{};z[i%D]=1.0;
+    assert(compatible.observe({i,z,0.0}).state==AdmissionState::shadow);
+  }
+  Vec z{};z[5]=1.0;
+  const auto admitted=compatible.observe({5,z,0.0});
+  assert(admitted.state==AdmissionState::admitted&&admitted.samples==6&&admitted.score==0.0);
+
+  ResidualMomentAdmission mismatched(source,6,10.0);
+  Vec first{};first[0]=1.0;
+  for(uint64_t i=0;i<5;i++)
+    assert(mismatched.observe({i,first,1.0}).state==AdmissionState::shadow);
+  const auto quarantined=mismatched.observe({5,first,1.0});
+  assert(quarantined.state==AdmissionState::quarantined&&quarantined.score>10.0);
+  // The first terminal result is frozen: later samples cannot optional-stop a
+  // quarantined source into the pool.
+  const auto frozen=mismatched.observe({6,first,0.0});
+  assert(frozen.state==AdmissionState::quarantined&&frozen.samples==6);
+
+  InstalledCoverageGuard guard(1.0,0.5,2);
+  Engine guarded("du-a","compat-v1",0.0,0.0);
+  auto burnin=guarded.coverage(guard,1);
+  assert(!burnin.monitoring_active&&burnin.covered&&burnin.required_floor==1.0);
+  auto failed=guarded.coverage(guard,2);
+  assert(failed.monitoring_active&&!failed.covered&&failed.minimum_eigenvalue==1.0&&
+         failed.required_floor==1.5);
+  // With a zero learned mean, the fallback bonus produces a strictly positive
+  // guarded weight precisely when installed coverage fails.
+  auto guarded_action=guarded.schedule_guarded({{"q",1,x,1,0}},{{"r",1,x}},
+                                                guard,2,1.0);
+  assert(guarded_action.size()==1&&guarded_action[0].score>0);
+  for(uint64_t i=0;i<6;i++) {
+    Vec basis{};basis[i]=1.0;guarded.observe({i,basis,0.0});
+  }
+  auto covered=guarded.coverage(guard,2);
+  assert(covered.covered&&covered.minimum_eigenvalue==2.0);
+  std::cout<<"watermark suffix capacity stale CRC SPD matching KPM admission coverage: PASS\n";
 }

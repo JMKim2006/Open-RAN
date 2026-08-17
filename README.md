@@ -16,6 +16,21 @@ measurements or actions.
   atomically, replays the exact post-cutoff suffix, acknowledges ActiveVersion,
   and performs queue-sensitive per-TTI matching locally.
 
+After the hard feature/service/action/epoch compatibility key matches, a new
+source can be held out of pooling for a fixed shadow window. The implemented
+`ResidualMomentAdmission` evaluates the manuscript's covariance-normalized
+source-model residual score once at the predeclared sample count, then freezes
+the result as admitted or quarantined. This statistical safeguard does not
+replace the hard semantic key and is not a separate algorithm.
+
+`InstalledCoverageGuard` checks the decision-time installed design matrix
+against the configured linear eigenvalue-growth floor, including snapshot age
+and local suffix replay. During the declared burn-in it records the ridge
+floor; afterward, `schedule_guarded` automatically substitutes a caller-supplied
+conservative confidence bonus whenever coverage fails. For the theorem-aligned
+fallback that bonus must be the current base-rule confidence radius
+corresponding to $\eta=1$.
+
 The RIC never receives queue state and never selects per-TTI RBG assignments.
 
 ## Canonical binary contract
@@ -50,7 +65,9 @@ python3 -m unittest discover -s tests -p 'test_*.py' -v
 The deterministic C++ tests cover loss, duplication, reordering, delayed and
 stale snapshots, regressive cutoffs, incompatible digests, invalid CRC,
 malformed frames, concurrent local observations, suffix replay, history
-completeness, no double counting, and matching capacities.
+completeness, no double counting, matching capacities, shadow quarantine,
+compatible admission, incompatible rejection, frozen terminal admission,
+coverage pass/fail, and conservative-bonus fallback.
 
 ## GitHub-hosted SCTP run
 
