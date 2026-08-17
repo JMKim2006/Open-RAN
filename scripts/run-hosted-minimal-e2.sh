@@ -33,6 +33,7 @@ set -e
 "$root/scripts/capability-probe.sh" "$out/capability"
 sudo apt-get update
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y   build-essential ccache cmake ninja-build git python3 python3-pip libsctp-dev lksctp-tools   libzmq3-dev libfftw3-dev libmbedtls-dev libyaml-cpp-dev libpcre2-dev   libboost-all-dev libconfig++-dev libgtest-dev tcpdump tshark
+tshark --version > "$out/tshark-version.txt"
 "$root/scripts/fetch-minimal-pinned.sh"
 "$root/scripts/build-hosted-minimal.sh" 2>&1 | tee "$out/logs/build.log"
 cp "$root/build/upstream/flexric/kpm-xapp-gnu-stack.txt" "$out/kpm-xapp-gnu-stack.txt"
@@ -56,4 +57,5 @@ wait "$gnb_pid" "$ric_pid" "$tcpdump_pid" 2>/dev/null
 set -e
 [[ "$xapp_rc" -eq 0 || "$xapp_rc" -eq 124 ]]
 python3 "$root/tools/collect_e2_evidence.py" "$out"
-python3 "$root/tools/evidence_gate.py" --gate A --evidence "$out/evidence.json"   | tee "$out/gate-a.json"
+python3 "$root/tools/evidence_gate.py" --gate G3 --evidence "$out/evidence.json" \
+  | tee "$out/gate-g3.json"

@@ -24,7 +24,7 @@ The standard GitHub-hosted `ubuntu-24.04` workflow executes:
 | `cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release` | Portable C++17 configuration |
 | `cmake --build build --parallel 2` | Engine, wire library, tests, `orqest-ric`, `orqest-du` |
 | `ctest --test-dir build --output-on-failure` | Engine and deterministic carrier tests |
-| `python3 tools/evidence_gate.py --gate G0 --evidence evidence/g0-public-stack.json` | Preserved G0 manifest only |
+| `python3 tools/evidence_gate.py --gate G0 --evidence evidence/g0-public-stack.json` | Expected failure: historical manifest invalidated after artifact audit |
 | `scripts/run-orqest-sctp-harness.sh evidence/orqest-sctp` | Actual multi-process SCTP carrier run |
 | `readelf -W -l build/orqest-ric` and `orqest-du` | Non-executable GNU_STACK evidence |
 | `tcpdump -i lo -s 0 ... 'sctp port 39001'` | Actual SCTP PCAP |

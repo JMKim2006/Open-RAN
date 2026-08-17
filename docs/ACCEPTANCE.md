@@ -4,14 +4,14 @@ ORQEST is one unified implementation. There are no ORQEST-T/ORQEST-P variants.
 
 ## Evidence gates
 
-### G0 — public-stack SCTP/E2 grounding
+### G0 — invalidated historical public-stack attempt
 
-Requires immutable OCUDU and FlexRIC revisions, a real SCTP association, E2
-Setup, KPM/RC RAN-function registration, and a nonempty E2AP PCAP. Existing
-evidence is preserved in `evidence/g0-public-stack.json` and its referenced
-Actions artifact.
-
-G0 explicitly does **not** claim KPM subscription or KPM indication.
+The former positive manifest is retained in `evidence/g0-public-stack.json` as
+a negative audit record. Its referenced artifact shows the ASan-linked RIC
+terminating before E2 Setup and repeated gNB connection refusals. A nonempty
+PCAP is insufficient, so G0 must not be cited as positive evidence. The new G3
+workflow must establish public-stack interoperability from decoded protocol
+fields.
 
 ### G1 — ORQEST wire-contract and provenance integrity
 
@@ -37,18 +37,20 @@ incompatible, CRC-invalid and malformed snapshots, and capacity-correct
 b-matching. RIC evidence must show that it received no queue state and selected
 no per-TTI assignment.
 
-### G3 — optional stock KPM interoperability
+### G3 — stock KPM interoperability
 
-Requires a real E2 Setup, KPM subscription exchange, KPM indication, and
-nonempty E2AP PCAP. G3 is independent and optional. G1 and G2 never depend on
-G3.
+Requires a real E2 Setup request/response, KPM subscription request/response,
+KPM indication, and nonempty E2AP PCAP. Each observation is derived from the
+E2AP procedure code and PDU choice rather than application-log strings. G3 is
+independent of G1/G2.
 
 ## Claim levels
 
 - **Process-level:** executable or test completion only.
 - **Wire-contract-level:** canonical experimental ORQEST serialization and
   validation.
-- **Public-stack grounding:** G0 only.
+- **Public-stack grounding:** only a passing G3 artifact; historical G0 is
+  invalidated.
 - **ORQEST closed-loop carrier validation:** G1/G2, over actual SCTP.
 - **Stock KPM interoperability:** G3 only.
 - **OTA:** requires independently identified RF hardware, spectrum, UE and RF

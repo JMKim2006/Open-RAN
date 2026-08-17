@@ -70,17 +70,19 @@ inspection, and final evidence JSON. Executable stacks are rejected.
 
 ## Independent gates
 
-- **G0 — public-stack grounding:** preserved pinned OCUDU/FlexRIC evidence,
-  real SCTP, E2 Setup, KPM/RC RAN-function registration, and nonempty E2AP PCAP.
-  G0 does not claim KPM subscription or indication.
+- **G0 — historical public-stack attempt:** the former positive manifest is
+  invalidated because its referenced artifact shows the RIC terminating before
+  E2 Setup. It is retained as a negative audit record and must not be cited as
+  positive evidence.
 - **G1 — ORQEST wire integrity:** canonical messages, CRC/malformed rejection,
   compatibility filtering, source completeness, and cutoff provenance over
   actual SCTP.
 - **G2 — ORQEST closed loop:** G1 plus report → aggregate → snapshot → atomic
   install → ActiveVersion acknowledgement → exact suffix replay → local
   queue-sensitive matching.
-- **G3 — optional stock interoperability:** real stock KPM subscription and
-  indication. G1 and G2 do not depend on G3.
+- **G3 — stock interoperability:** real stock KPM subscription and indication,
+  derived from protocol fields in a captured E2AP PCAP. G3 remains logically
+  independent of G1 and G2.
 
 The retired generic FlexRIC KPM xApp repair path is not part of G1 or G2.
 FlexRIC, SQLite, and the E42 event framework are not modified by the carrier
