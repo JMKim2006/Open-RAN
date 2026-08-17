@@ -1,0 +1,162 @@
+name: hosted-validation
+
+on:
+  push:
+    branches: [agent/orqest-public-stack-validation]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  capability-probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe hosted runner
+        id: probe
+        continue-on-error: true
+        run: scripts/capability-probe.sh evidence/capability
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capability-probe
+          path: evidence/capability
+          if-no-files-found: error
+      - if: steps.probe.outcome != 'success'
+        run: exit 1
+
+  portable-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y libsctp-dev
+      - run: python3 tools/check_posix_paths.py
+      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+      - run: cmake --build build --parallel 2
+      - run: ctest --test-dir build --output-on-failure
+      - run: python3 tools/validate_contract.py
+      - run: python3 -m unittest discover -s tests -p 'test_*.py' -v
+
+  orqest-sctp-carrier:
+    needs: [capability-probe, portable-contract]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run actual SCTP ORQEST carrier
+        id: carrier
+        continue-on-error: true
+        run: bash scripts/run-orqest-sctp-harness.sh evidence/orqest-sctp
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: orqest-sctp-g1-g2-evidence
+          path: evidence/orqest-sctp
+          if-no-files-found: error
+      - if: steps.carrier.outcome != 'success'
+        run: exit 1
+
+  evidence-summary:
+    if: always()
+    needs: orqest-sctp-carrier
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: orqest-sctp-g1-g2-evidence
+          path: evidence
+      - name: Print bounded G1/G2 summary
+        shell: bash
+        run: |
+          set -u
+          for file in evidence/evidence.json evidence/gate-g1.json evidence/gate-g2.json \
+            evidence/repository-commit.txt evidence/dirty-tree.txt \
+            evidence/binary-sha256.txt evidence/sha256-manifest.txt \
+            evidence/orqest-ric-gnu-stack.txt evidence/orqest-du-gnu-stack.txt \
+            evidence/timeline.json evidence/sctp-tshark.txt; do
+            echo "::group::$file"
+            if [[ -f "$file" ]]; then
+              sed -n '1,240p' "$file"
+            else
+              echo "missing"
+            fi
+            echo "::endgroup::"
+          done
+          for file in evidence/logs/orqest-ric.log evidence/logs/orqest-du.log \
+            evidence/logs/tcpdump.log; do
+            echo "::group::$file"
+            if [[ -f "$file" ]]; then tail -n 160 "$file"; else echo "missing"; fi
+            echo "::endgroup::"
+          done
+          if [[ -f evidence/orqest-sctp.pcap ]]; then
+            stat --printf='evidence/orqest-sctp.pcap bytes=%s\n' evidence/orqest-sctp.pcap
+          fi
+
+  public-stack-g3:
+    needs: capability-probe
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore public-stack build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/upstream
+            ~/.cache/ccache
+          key: g3-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('integration/pins.env', 'integration/patches/*.patch', 'scripts/build-hosted-minimal.sh') }}
+      - name: Run pinned OCUDU/FlexRIC KPM exchange
+        id: g3
+        continue-on-error: true
+        run: bash scripts/run-hosted-minimal-e2.sh evidence/public-stack-g3
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-stack-g3-evidence
+          path: evidence/public-stack-g3
+          if-no-files-found: error
+          retention-days: 90
+      - if: steps.g3.outcome != 'success'
+        run: exit 1
+
+  g3-evidence-summary:
+    if: always()
+    needs: public-stack-g3
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: public-stack-g3-evidence
+          path: evidence
+      - name: Print bounded G3 summary
+        shell: bash
+        run: |
+          set -u
+          for file in evidence/evidence.json evidence/gate-g3.json \
+            evidence/run-metadata.txt evidence/commits.txt evidence/pins.env \
+            evidence/tshark-version.txt evidence/flexric-build-flags.txt \
+            evidence/generated-service-model-libraries.txt \
+            evidence/kpm-xapp-gnu-stack.txt; do
+            echo "::group::$file"
+            if [[ -f "$file" ]]; then
+              sed -n '1,260p' "$file"
+            else
+              echo "missing"
+            fi
+            echo "::endgroup::"
+          done
+          for file in evidence/logs/kpm-xapp.log evidence/logs/flexric.log \
+            evidence/logs/ocudu.log evidence/logs/orchestrator.log; do
+            echo "::group::$file"
+            if [[ -f "$file" ]]; then tail -n 200 "$file"; else echo "missing"; fi
+            echo "::endgroup::"
+          done
+          if [[ -f evidence/e2ap.pcap ]]; then
+            stat --printf='evidence/e2ap.pcap bytes=%s\n' evidence/e2ap.pcap
+          fi

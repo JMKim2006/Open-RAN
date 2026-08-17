@@ -1,0 +1,17 @@
+{
+  "gate": "G0",
+  "status": "invalidated-after-artifact-audit",
+  "source_workflow_run_id": 30257846462,
+  "source_workflow_url": "https://github.com/JMKim2006/Open-RAN/actions/runs/30257846462",
+  "ocudu_revision": "9b0cfa600d9d693bf56277e4575dc8c4b8b729bb",
+  "flexric_revision": "f1c08ed2b9b1eceeda7941dd7bf435db0168dd56",
+  "pinned_ocudu": true,
+  "pinned_flexric": true,
+  "actual_sctp_association": false,
+  "e2_setup": false,
+  "kpm_rc_ran_function_registration": false,
+  "nonempty_e2ap_pcap": true,
+  "kpm_subscription": false,
+  "kpm_indication": false,
+  "claim_boundary": "Invalidated: the referenced artifact shows the ASan-linked RIC terminating before E2 Setup and repeated gNB connection refusals. A nonempty capture alone does not establish an SCTP association or E2 Setup. This manifest must not be used as positive evidence."
+}

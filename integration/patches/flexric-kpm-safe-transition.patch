@@ -1,0 +1,172 @@
+diff --git a/src/xApp/plugin_agent.c b/src/xApp/plugin_agent.c
+index 0b76520..fa27c45 100644
+--- a/src/xApp/plugin_agent.c
++++ b/src/xApp/plugin_agent.c
+@@ -25,6 +25,7 @@
+ #include "util/alg_ds/ds/lock_guard/lock_guard.h"
+ #include "util/compare.h"
+ #include "util/conf_file.h"
++#include "util/time_now_us.h"
+ #include <assert.h>
+ 
+ #include <arpa/inet.h>
+@@ -272,7 +273,5 @@ void load_plugin_ag(plugin_ag_t* p, const char* path)
+   assert(p != NULL);
+   assert(path != NULL);
+ 
+-  printf("[E2 AGENT]: Opening plugin from path = %s \n", path );
+-
+   void* handle = dlopen(path, RTLD_NOW);
+   if(handle == NULL){
+@@ -316,10 +317,37 @@ void load_plugin_ag(plugin_ag_t* p, const char* path)
+ 
+   sm_agent_t* (*fp)(sm_io_ag_ran_t);
+   fp = dlsym(handle, symbol_so);
+-  check_dl_error();
++  const char* symbol_error = dlerror();
++  const long long ts_us = time_now_us();
++  const char* sm_name = ptr_so_name;
++  const size_t sm_name_len = (size_t)(match - ptr_so_name);
++  fprintf(stderr,
++          "KPM_DIAG ts_us=%lld phase=service-model-lookup status=%s "
++          "array_length=0 function_id=0 revision_id=0 service_model=%.*s return_code=%d\n",
++          ts_us, fp != NULL && symbol_error == NULL ? "non-null" : "null",
++          (int)sm_name_len, sm_name, fp != NULL && symbol_error == NULL ? 0 : -1);
++  if(fp == NULL || symbol_error != NULL) {
++    dlclose(handle);
++    return;
++  }
++  fprintf(stderr,
++          "KPM_DIAG ts_us=%lld phase=service-model-factory status=before "
++          "array_length=0 function_id=0 revision_id=0 service_model=%.*s return_code=0\n",
++          ts_us, (int)sm_name_len, sm_name);
+   sm_agent_t* sm = fp(p->io);
+-
+-  sm->handle = handle; 
+-  assert(sm != NULL);
++  if(sm == NULL) {
++    fprintf(stderr,
++            "KPM_DIAG ts_us=%lld phase=service-model-factory status=null "
++            "array_length=0 function_id=0 revision_id=0 service_model=%.*s return_code=-1\n",
++            ts_us, (int)sm_name_len, sm_name);
++    dlclose(handle);
++    return;
++  }
++  sm->handle = handle;
+   const uint16_t ran_func_id = sm->info.id();
++  const uint16_t revision_id = sm->info.rev();
++  fprintf(stderr,
++          "KPM_DIAG ts_us=%lld phase=service-model-factory status=after "
++          "array_length=1 function_id=%u revision_id=%u service_model=%.*s return_code=0\n",
++          ts_us, ran_func_id, revision_id, (int)sm_name_len, sm_name);
+ 
+diff --git a/examples/xApp/c/monitor/xapp_kpm_moni.c b/examples/xApp/c/monitor/xapp_kpm_moni.c
+index 5fa00cc..6e6434d 100644
+--- a/examples/xApp/c/monitor/xapp_kpm_moni.c
++++ b/examples/xApp/c/monitor/xapp_kpm_moni.c
+@@ -25,6 +25,7 @@
+ #include <stdlib.h>
+ #include <stdio.h>
+ #include <time.h>
++#include <stdint.h>
+ #include <unistd.h>
+ #include <signal.h>
+ #include <pthread.h>
+@@ -321,11 +322,24 @@ static
+ kpm_sub_data_t gen_kpm_subs(kpm_ran_function_def_t const* ran_func)
+ {
+-  assert(ran_func != NULL);
+-  assert(ran_func->ric_event_trigger_style_list != NULL);
+-
+   kpm_sub_data_t kpm_sub = {0};
++  fprintf(stderr, "KPM_DIAG ts_us=%ld phase=subscription-allocation status=before array_length=0 function_id=2 revision_id=3 service_model=KPM return_code=0\n", time_now_us());
++  if(ran_func == NULL || ran_func->ric_event_trigger_style_list == NULL ||
++     ran_func->sz_ric_event_trigger_style_list == 0 ||
++     ran_func->ric_report_style_list == NULL || ran_func->sz_ric_report_style_list == 0) {
++    fprintf(stderr, "KPM_DIAG ts_us=%ld phase=subscription-allocation status=null-or-empty array_length=0 function_id=2 revision_id=3 service_model=KPM return_code=-1\n", time_now_us());
++    return kpm_sub;
++  }
++
++  ric_report_style_item_t* const report_item = &ran_func->ric_report_style_list[0];
++  ric_service_report_e const report_style_type = report_item->report_style_type;
++  const size_t style_count = sizeof(get_kpm_act_def) / sizeof(get_kpm_act_def[0]);
++  if((size_t)report_style_type >= style_count || get_kpm_act_def[report_style_type] == NULL) {
++    fprintf(stderr, "KPM_DIAG ts_us=%ld phase=action-definition status=unsupported array_length=%zu function_id=2 revision_id=3 service_model=KPM return_code=-2\n", time_now_us(), style_count);
++    return kpm_sub;
++  }
+ 
+   // Generate Event Trigger
+-  assert(ran_func->ric_event_trigger_style_list[0].format_type == FORMAT_1_RIC_EVENT_TRIGGER);
++  if(ran_func->ric_event_trigger_style_list[0].format_type != FORMAT_1_RIC_EVENT_TRIGGER)
++    return kpm_sub;
+   kpm_sub.ev_trg_def.type = FORMAT_1_RIC_EVENT_TRIGGER;
+   kpm_sub.ev_trg_def.kpm_ric_event_trigger_format_1.report_period_ms = period_ms;
+@@ -335,9 +353,8 @@ kpm_sub_data_t gen_kpm_subs(kpm_ran_function_def_t const* ran_func)
+ 
+   // Multiple Action Definitions in one SUBSCRIPTION message is not supported in this project
+   // Multiple REPORT Styles = Multiple Action Definition = Multiple SUBSCRIPTION messages
+-  ric_report_style_item_t* const report_item = &ran_func->ric_report_style_list[0];
+-  ric_service_report_e const report_style_type = report_item->report_style_type;
++  fprintf(stderr, "KPM_DIAG ts_us=%ld phase=action-definition status=before array_length=%zu function_id=2 revision_id=3 service_model=KPM return_code=0\n", time_now_us(), style_count);
+   *kpm_sub.ad = get_kpm_act_def[report_style_type](report_item);
+-
++  fprintf(stderr, "KPM_DIAG ts_us=%ld phase=action-definition status=after array_length=%zu function_id=2 revision_id=3 service_model=KPM return_code=0\n", time_now_us(), style_count);
+   return kpm_sub;
+ }
+@@ -353,7 +370,7 @@ size_t find_sm_idx(sm_ran_function_t* rf, size_t sz, bool (*f)(sm_ran_function_t
+       return i;
+   }
+ 
+-  assert(0 != 0 && "SM ID could not be found in the RAN Function List");
++  return SIZE_MAX;
+ }
+ 
+ int main(int argc, char* argv[])
+@@ -361,12 +378,15 @@ int main(int argc, char* argv[])
+   fr_args_t args = init_fr_args(argc, argv);
+ 
+   // Init the xApp
++  fprintf(stderr, "KPM_DIAG ts_us=%ld phase=e2-node-discovery status=before array_length=0 function_id=2 revision_id=3 service_model=KPM return_code=0\n", time_now_us());
+   init_xapp_api(&args);
+   sleep(1);
+ 
+   e2_node_arr_xapp_t nodes = e2_nodes_xapp_api();
+   defer({ free_e2_node_arr_xapp(&nodes); });
+ 
+-  assert(nodes.len > 0);
++  fprintf(stderr, "KPM_DIAG ts_us=%ld phase=e2-node-discovery status=after array_length=%zu function_id=2 revision_id=3 service_model=KPM return_code=%d\n", time_now_us(), (size_t)nodes.len, nodes.len > 0 ? 0 : -1);
++  if(nodes.len == 0 || nodes.n == NULL)
++    return EXIT_FAILURE;
+ 
+   printf("Connected E2 nodes = %d\n", nodes.len);
+@@ -388,16 +409,27 @@ int main(int argc, char* argv[])
+   for (size_t i = 0; i < nodes.len; ++i) {
+     e2_node_connected_xapp_t* n = &nodes.n[i];
+ 
++    fprintf(stderr, "KPM_DIAG ts_us=%ld phase=ran-function-lookup status=before array_length=%zu function_id=2 revision_id=3 service_model=KPM return_code=0\n", time_now_us(), n->len_rf);
+     size_t const idx = find_sm_idx(n->rf, n->len_rf, eq_sm, KPM_ran_function);
+-    assert(n->rf[idx].defn.type == KPM_RAN_FUNC_DEF_E && "KPM is not the received RAN Function");
++    if(idx == SIZE_MAX || n->rf == NULL) {
++      fprintf(stderr, "KPM_DIAG ts_us=%ld phase=ran-function-lookup status=not-found array_length=%zu function_id=2 revision_id=3 service_model=KPM return_code=-1\n", time_now_us(), n->len_rf);
++      continue;
++    }
++    const bool supported = n->rf[idx].defn.type == KPM_RAN_FUNC_DEF_E;
++    fprintf(stderr, "KPM_DIAG ts_us=%ld phase=kpm-service-model-lookup status=%s array_length=%zu function_id=2 revision_id=3 service_model=KPM return_code=%d\n", time_now_us(), supported ? "supported" : "unsupported", n->len_rf, supported ? 0 : -2);
++    if(!supported)
++      continue;
+     // if REPORT Service is supported by E2 node, send SUBSCRIPTION
+     // e.g. OAI CU-CP
+     if (n->rf[idx].defn.kpm.ric_report_style_list != NULL) {
+       // Generate KPM SUBSCRIPTION message
+       kpm_sub_data_t kpm_sub = gen_kpm_subs(&n->rf[idx].defn.kpm);
+-
++      if(kpm_sub.ad == NULL || kpm_sub.sz_ad == 0)
++        continue;
++      fprintf(stderr, "KPM_DIAG ts_us=%ld phase=callback-registration status=before array_length=1 function_id=2 revision_id=3 service_model=KPM return_code=0\n", time_now_us());
++      fprintf(stderr, "KPM_DIAG ts_us=%ld phase=subscription-transmission status=before array_length=1 function_id=2 revision_id=3 service_model=KPM return_code=0\n", time_now_us());
+       hndl[i] = report_sm_xapp_api(&n->id, KPM_ran_function, &kpm_sub, sm_cb_kpm);
+-      assert(hndl[i].success == true);
++      fprintf(stderr, "KPM_DIAG ts_us=%ld phase=subscription-transmission status=after array_length=1 function_id=2 revision_id=3 service_model=KPM return_code=%d\n", time_now_us(), hndl[i].success ? 0 : -1);
+ 
+       free_kpm_sub_data(&kpm_sub);
+     }

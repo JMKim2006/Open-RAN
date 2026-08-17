@@ -1,0 +1,13 @@
+diff --git a/src/util/eq.h b/src/util/eq.h
+index 75b4d94..9c21f68 100644
+--- a/src/util/eq.h
++++ b/src/util/eq.h
+@@ -32,7 +32,7 @@ SOFTWARE.
+ #if defined __clang__ 
+   #define eq_ptr_assert(x,f) assert((is_primitive_type((*x)) || f != NULL) && "Structs need equality function"); 
+ #elif defined __GNUC__ 
+-  #define eq_ptr_assert(x,f) _Static_assert((is_primitive_type((*x)) || f != NULL) , "Structs need equality function"); 
++  #define eq_ptr_assert(x,f) assert((is_primitive_type((*x)) || f != NULL) && "Structs need equality function"); 
+ #endif 
+ 
+ 
